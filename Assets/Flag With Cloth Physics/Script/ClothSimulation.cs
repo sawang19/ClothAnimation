@@ -23,44 +23,44 @@ public class ClothSimulation : MonoBehaviour
     }
 
     void InitializeParticles()
-{
-    particles = new Particle[originalVertices.Length];
-    float leftmostX = float.MaxValue;
-    float rightmostX = float.MinValue;
-    int leftmostIndex = -1;
-    int rightmostIndex = -1;
-
-    // 创建粒子并找到左右上角的顶点
-    for (int i = 0; i < originalVertices.Length; i++)
     {
-        Vector3 worldPosition = transform.TransformPoint(originalVertices[i]);
-        particles[i] = new Particle(worldPosition);
+        particles = new Particle[originalVertices.Length];
+        float leftmostX = float.MaxValue;
+        float rightmostX = float.MinValue;
+        int leftmostIndex = -1;
+        int rightmostIndex = -1;
 
-        // 查找最左和最右的顶点
-        if (worldPosition.x < leftmostX)
+        // 创建粒子并找到左右上角的顶点
+        for (int i = 0; i < originalVertices.Length; i++)
         {
-            leftmostX = worldPosition.x;
-            leftmostIndex = i;
-        }
-        if (worldPosition.x > rightmostX)
-        {
-            rightmostX = worldPosition.x;
-            rightmostIndex = i;
-        }
-    }
+            Vector3 worldPosition = transform.TransformPoint(originalVertices[i]);
+            particles[i] = new Particle(worldPosition);
 
-    // 固定左右上角的顶点
-    if (leftmostIndex != -1)
-    {
-        particles[leftmostIndex].isPinned = true;
-        Debug.Log("Leftmost particle pinned at: " + particles[leftmostIndex].position);
+            // 查找最左和最右的顶点
+            if (worldPosition.x < leftmostX)
+            {
+                leftmostX = worldPosition.x;
+                leftmostIndex = i;
+            }
+            if (worldPosition.x > rightmostX)
+            {
+                rightmostX = worldPosition.x;
+                rightmostIndex = i;
+            }
+        }
+
+        // 固定左右上角的顶点
+        if (leftmostIndex != -1)
+        {
+            particles[leftmostIndex].isPinned = true;
+            Debug.Log("Leftmost particle pinned at: " + particles[leftmostIndex].position);
+        }
+        if (rightmostIndex != -1)
+        {
+            particles[rightmostIndex].isPinned = true;
+            Debug.Log("Rightmost particle pinned at: " + particles[rightmostIndex].position);
+        }
     }
-    if (rightmostIndex != -1)
-    {
-        particles[rightmostIndex].isPinned = true;
-        Debug.Log("Rightmost particle pinned at: " + particles[rightmostIndex].position);
-    }
-}
 
 
     void InitializeSprings()
@@ -120,14 +120,15 @@ public class ClothSimulation : MonoBehaviour
         // 处理与球体的碰撞
         if (collisionSphere != null)
         {
-            HandleCollisions();
+            // handleSphereCollisionSimple();
+            handleSphereCollision();
         }
 
         // 更新网格顶点
         UpdateMesh();
     }
 
-    void HandleCollisions()
+    void handleSphereCollisionSimple()
     {
         Vector3 spherePosition = collisionSphere.position;
 
@@ -142,6 +143,30 @@ public class ClothSimulation : MonoBehaviour
             }
         }
     }
+
+    void handleSphereCollision(float elasticity = 0.05f, float friction = 0.9f)
+    {
+        Vector3 spherePosition = collisionSphere.position;
+        float deltaR = 0.1f;
+        // todo: collisionRadius = sphereRadius + deltaR;  // 避免穿模
+        foreach (var particle in particles)
+        {   
+            
+            Vector3 direction = particle.position - spherePosition;
+            float distance = direction.magnitude;
+
+            // 检查粒子是否在球体内部
+            if (distance < sphereRadius)
+            {
+                // 将粒子放置在球体表面
+                particle.position = spherePosition + direction.normalized * sphereRadius;
+                Vector3 collisionForce = direction.normalized * elasticity;
+                particle.AddForce(collisionForce);
+            }
+            // todo: friction
+        }
+    }
+
 
     void UpdateMesh()
     {
