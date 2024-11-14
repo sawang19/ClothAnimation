@@ -3,10 +3,13 @@ using System.Collections.Generic;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ClothSimulation : MonoBehaviour
-{
+{   
     public Transform collisionSphere;
-    public float gravityStrength = 9.81f;
     public float sphereRadius = 0.5f;
+    //public Transform collisionCapsulePointA, collisionCapsulePointB;
+    public Vector3 pointA, pointB;
+    public float capsuleRadius = 0.02f;
+    public float gravityStrength = 9.81f;
     public float stiffness = 0.5f;
 
     private Mesh mesh;
@@ -16,6 +19,8 @@ public class ClothSimulation : MonoBehaviour
 
     void Start()
     {
+        pointA = new Vector3(0, 0f, 0);
+        pointB = new Vector3(0, 3f, 0);
         mesh = GetComponent<MeshFilter>().mesh;
         originalVertices = mesh.vertices;
         InitializeParticles();
@@ -123,7 +128,7 @@ public class ClothSimulation : MonoBehaviour
             // handleSphereCollisionSimple();
             handleSphereCollision();
         }
-
+        handleCapsuleCollision();
         // 更新网格顶点
         UpdateMesh();
     }
@@ -144,11 +149,11 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-    void handleSphereCollision(float elasticity = 0.05f, float friction = 0.9f)
+    void handleSphereCollision(float elasticity = 0.05f, float friction = 0.2f)
     {
         Vector3 spherePosition = collisionSphere.position;
         float deltaR = 0.1f;
-        // todo: collisionRadius = sphereRadius + deltaR;  // 避免穿模
+        float collisionRadius = sphereRadius + deltaR;  // 避免穿模
         foreach (var particle in particles)
         {   
             
@@ -156,16 +161,60 @@ public class ClothSimulation : MonoBehaviour
             float distance = direction.magnitude;
 
             // 检查粒子是否在球体内部
-            if (distance < sphereRadius)
+            if (distance < collisionRadius)
             {
                 // 将粒子放置在球体表面
-                particle.position = spherePosition + direction.normalized * sphereRadius;
+                particle.position = spherePosition + direction.normalized * collisionRadius;
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
             }
-            // todo: friction
+
+            // friction force
+            Vector3 normal = direction.normalized;
+            Vector3 velocity = particle.position - particle.previousPosition;
+            Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
+            Vector3 frictionForce = -tangentialVelocity.normalized * tangentialVelocity.magnitude * friction;
+            particle.AddForce(frictionForce);
         }
     }
+
+    void handleCapsuleCollision(float elasticity = 0.05f)
+    {
+        //Vector3 pointA = collisionCapsulePointA.position;
+        //Vector3 pointB = collisionCapsulePointB.position;
+        float deltaR = 0.01f;
+        float collisionRadius = capsuleRadius + deltaR;  // 避免穿模
+
+        foreach (var particle in particles)
+        {
+            // 计算粒子到胶囊轴线段的最近点
+            Vector3 particlePosition = particle.position;
+            Vector3 capsuleDirection = pointB - pointA;
+            float capsuleLength = capsuleDirection.magnitude;
+            capsuleDirection.Normalize();
+
+            // 将粒子位置投影到胶囊的轴线上，找到最近点
+            float t = Vector3.Dot(particlePosition - pointA, capsuleDirection);
+            t = Mathf.Clamp(t, 0, capsuleLength); // 限制 t 在 [0, capsuleLength] 之间
+            Vector3 closestPoint = pointA + capsuleDirection * t;
+
+            // 检查粒子是否在胶囊体内部
+            Vector3 direction = particlePosition - closestPoint;
+            float distance = direction.magnitude;
+
+            if (distance < collisionRadius)
+            {
+                // 将粒子放置在胶囊表面
+                particle.position = closestPoint + direction.normalized * collisionRadius;
+
+                // 计算并施加碰撞力
+                Vector3 collisionForce = direction.normalized * elasticity;
+                particle.AddForce(collisionForce);
+                Debug.Log("Collision:" + particlePosition.ToString());
+            }
+        }
+    }
+
 
 
     void UpdateMesh()
@@ -202,5 +251,15 @@ public class ClothSimulation : MonoBehaviour
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(collisionSphere.position, sphereRadius);
         }
+
+        /*
+        if (collisionCapsulePointA != null && collisionCapsulePointB != null)
+        {
+            Gizmos.color = Color.blue;
+            ;
+
+        }*/
     }
+
+    
 }
