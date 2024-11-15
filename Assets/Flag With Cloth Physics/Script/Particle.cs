@@ -23,14 +23,17 @@ public class Particle
         }
     }
 
-    public void UpdatePosition(float deltaTime)
+    public void UpdatePosition(float deltaTime, float damping = 0.98f)
     {
-        if (isPinned) return;
-
-        // Verlet integration for more stable cloth simulation
-        Vector3 newPosition = position + (position - previousPosition) + acceleration * deltaTime * deltaTime;
-        previousPosition = position;
-        position = newPosition;
+        if (!isPinned) 
+        {
+            // Verlet integration for more stable cloth simulation
+            Vector3 velocity = position - previousPosition;
+            velocity *= damping; // 阻尼
+            Vector3 newPosition = position + velocity + acceleration * deltaTime * deltaTime;
+            previousPosition = position;
+            position = newPosition;
+        }
 
         // Reset acceleration after each frame
         acceleration = Vector3.zero;

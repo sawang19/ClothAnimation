@@ -24,5 +24,9 @@ public class Movement : MonoBehaviour {
 		if (Input.GetKey(KeyCode.S)) {
 			myRigidbody.AddForce (0,0,Force*Time.deltaTime);
 		}
+		if (Input.GetKey(KeyCode.H)) {  // hold!
+			myRigidbody.velocity = Vector3.zero;
+            myRigidbody.angularVelocity = Vector3.zero;
+		}
 	}
 }
