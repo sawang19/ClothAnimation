@@ -7,7 +7,7 @@ using System.Collections;
 public class ClothSimulation : MonoBehaviour
 {   
     public Transform collisionSphere;
-    public float sphereRadius = 0.5f;
+    public const float collisionSphereRadius = 0.5f;
     //public Transform collisionCapsulePointA, collisionCapsulePointB;
     public Vector3 pointA, pointB;
     public float capsuleRadius = 0.02f;
@@ -140,7 +140,8 @@ public class ClothSimulation : MonoBehaviour
     void Update()
     {
         float deltaTime = Time.deltaTime;
-
+        Debug.Log($"Update is running on GameObject: {gameObject.name}");
+        
         // 应用重力
         Vector3 gravity = new Vector3(0, -gravityStrength, 0);
         foreach (var particle in particles)
@@ -164,9 +165,33 @@ public class ClothSimulation : MonoBehaviour
         if (collisionSphere != null)
         {
             // handleSphereCollisionSimple();
-            handleSphereCollision();
+            // handleSphereCollision(collisionSphere.position, collisionSphereRadius);
+            GameObject sphereObject = GameObject.Find("Sphere");
+            SphereCollider sphereCollider = sphereObject.GetComponent<SphereCollider>();
+            handleSphereCollision(sphereCollider);
         }
-        handleCapsuleCollision();
+
+        GameObject targetObject = GameObject.Find("Wood");
+        if (targetObject != null)
+        {
+            CapsuleCollider capsuleCollider = targetObject.GetComponent<CapsuleCollider>();
+            if (capsuleCollider != null)
+            {
+                Debug.Log($"CapsuleCollider found on object: {targetObject.name}");
+                handleCapsuleCollision(capsuleCollider);
+            }
+            else
+            {
+                Debug.LogWarning("CapsuleCollider not found on the target object!");
+            }
+        }
+        else
+        {
+            Debug.LogError("Target object not found in the scene!");
+        }
+
+        
+        
         // 更新网格顶点
         UpdateMesh();
     }
@@ -196,7 +221,7 @@ public class ClothSimulation : MonoBehaviour
     }
 
 
-    void handleSphereCollisionSimple()
+    void handleSphereCollisionSimple(float sphereRadius)
     {
         Vector3 spherePosition = collisionSphere.position;
 
@@ -212,14 +237,21 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-    void handleSphereCollision(float elasticity = 0.05f, float friction = 0.2f)
+    void handleSphereCollision(SphereCollider sphereCollider, float elasticity = 0.05f, float friction = 0.2f)
     {
-        Vector3 spherePosition = collisionSphere.position;
-        float deltaR = 0.1f;
+        if (sphereCollider == null)
+        {
+            Debug.LogError("SphereCollider is null! Please pass a valid SphereCollider.");
+            return;
+        }
+
+        Vector3 spherePosition = sphereCollider.transform.TransformPoint(sphereCollider.center); // 转换为世界坐标
+        float sphereRadius = sphereCollider.radius;
+
+        float deltaR = 0.2f * sphereRadius;
         float collisionRadius = sphereRadius + deltaR;  // 避免穿模
         foreach (var particle in particles)
-        {   
-            
+        {
             Vector3 direction = particle.position - spherePosition;
             float distance = direction.magnitude;
 
@@ -228,11 +260,13 @@ public class ClothSimulation : MonoBehaviour
             {
                 // 将粒子放置在球体表面
                 particle.position = spherePosition + direction.normalized * collisionRadius;
+
+                // 计算碰撞力
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
             }
 
-            // friction force
+            // 计算摩擦力
             Vector3 normal = direction.normalized;
             Vector3 velocity = particle.position - particle.previousPosition;
             Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
@@ -241,11 +275,36 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-    void handleCapsuleCollision(float elasticity = 0.05f)
+    void handleCapsuleCollision(CapsuleCollider capsuleCollider, float elasticity = 0.05f)
     {
-        //Vector3 pointA = collisionCapsulePointA.position;
-        //Vector3 pointB = collisionCapsulePointB.position;
-        float deltaR = 0.01f;
+        // 获取 Transform
+        Transform objTransform = capsuleCollider.transform;
+
+        // 获取胶囊体的方向、高度和半径
+        Vector3 center = capsuleCollider.center; // 胶囊体的中心（局部坐标）
+        float height = capsuleCollider.height;
+        float capsuleRadius = capsuleCollider.radius;
+        int directionAxis = capsuleCollider.direction; // 主轴方向：0=X, 1=Y, 2=Z
+
+        // 计算偏移量
+        float offset = (height / 2) - capsuleRadius;
+
+        // 根据方向计算偏移向量
+        Vector3 offsetVector = Vector3.zero;
+        if (directionAxis == 0) offsetVector = new Vector3(offset, 0, 0); // X 轴
+        else if (directionAxis == 1) offsetVector = new Vector3(0, offset, 0); // Y 轴
+        else if (directionAxis == 2) offsetVector = new Vector3(0, 0, offset); // Z 轴
+
+        // 计算两端的半球中心点（局部坐标）
+        Vector3 pointA = center + offsetVector; // 顶部半球中心
+        Vector3 pointB = center - offsetVector; // 底部半球中心
+
+        // 转换为世界坐标
+        pointA = objTransform.TransformPoint(pointA);
+        pointB = objTransform.TransformPoint(pointB);
+        Debug.Log("Point A (Top Hemisphere Center): " + pointA);
+        Debug.Log("Point B (Bottom Hemisphere Center): " + pointB);
+        float deltaR = 0.2f *  capsuleRadius;
         float collisionRadius = capsuleRadius + deltaR;  // 避免穿模
 
         foreach (var particle in particles)
@@ -310,7 +369,7 @@ public class ClothSimulation : MonoBehaviour
         if (collisionSphere != null)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(collisionSphere.position, sphereRadius);
+            Gizmos.DrawWireSphere(collisionSphere.position, collisionSphereRadius);
         }
 
         /*
