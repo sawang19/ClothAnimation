@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections;
+
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ClothSimulation : MonoBehaviour
@@ -17,6 +19,11 @@ public class ClothSimulation : MonoBehaviour
     private Particle[] particles;
     private List<Spring> springs = new List<Spring>();
 
+    // 风力参数
+    public float windStrength = 1000f; // 风的强度
+    // 保存初始法线方向
+    private Vector3 initialNormal;
+
     void Start()
     {
         pointA = new Vector3(0, 0f, 0);
@@ -25,6 +32,7 @@ public class ClothSimulation : MonoBehaviour
         originalVertices = mesh.vertices;
         InitializeParticles();
         InitializeSprings();
+        CalculateInitialNormal();
     }
 
     void InitializeParticles()
@@ -85,6 +93,36 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
+    void CalculateInitialNormal()
+    {
+        // 获取网格数据
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
+
+        if (triangles.Length >= 3)
+        {
+            // 获取第一个三角形的三个顶点，并转换为世界坐标
+            Vector3 p0 = transform.TransformPoint(vertices[triangles[0]]);
+            Vector3 p1 = transform.TransformPoint(vertices[triangles[1]]);
+            Vector3 p2 = transform.TransformPoint(vertices[triangles[2]]);
+
+            // 计算法线向量
+            Vector3 normal = Vector3.Cross(p1 - p0, p2 - p0).normalized;
+
+            // 保存初始法线方向
+            initialNormal = normal;
+
+            Debug.Log("初始法线方向：" + initialNormal);
+        }
+        else
+        {
+            // 如果网格数据不足，默认使用物体的上方向
+            initialNormal = transform.up;
+            Debug.LogWarning("无法计算初始法线方向，使用默认值：" + initialNormal);
+        }
+    }
+
+
     void AddSpring(int indexA, int indexB)
     {
         // 确保不重复添加弹簧
@@ -132,6 +170,31 @@ public class ClothSimulation : MonoBehaviour
         // 更新网格顶点
         UpdateMesh();
     }
+
+    public void ApplyWindForce()
+    {
+        StartCoroutine(ApplyWindForDuration(2f)); // 持续施加风力 2 秒
+    }
+
+    private IEnumerator ApplyWindForDuration(float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            // 计算风力向量
+            Vector3 windForce = initialNormal.normalized * windStrength;
+
+            // 对每个粒子施加风力
+            foreach (var particle in particles)
+            {
+                particle.AddForce(windForce);
+            }
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+    }
+
 
     void handleSphereCollisionSimple()
     {
@@ -210,12 +273,10 @@ public class ClothSimulation : MonoBehaviour
                 // 计算并施加碰撞力
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
-                Debug.Log("Collision:" + particlePosition.ToString());
+                // Debug.Log("Collision:" + particlePosition.ToString());
             }
         }
     }
-
-
 
     void UpdateMesh()
     {
