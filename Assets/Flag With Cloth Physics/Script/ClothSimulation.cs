@@ -2,15 +2,13 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 
-
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ClothSimulation : MonoBehaviour
-{   
-    public Transform collisionSphere;
-    public const float collisionSphereRadius = 0.5f;
-    //public Transform collisionCapsulePointA, collisionCapsulePointB;
-    public Vector3 pointA, pointB;
-    public float capsuleRadius = 0.02f;
+{
+    // Arrays to hold multiple sphere and capsule colliders
+    public SphereCollider[] sphereColliders;
+    public CapsuleCollider[] capsuleColliders;
+
     public float gravityStrength = 9.81f;
     public float stiffness = 0.5f;
 
@@ -19,15 +17,13 @@ public class ClothSimulation : MonoBehaviour
     private Particle[] particles;
     private List<Spring> springs = new List<Spring>();
 
-    // 风力参数
-    public float windStrength = 1000f; // 风的强度
-    // 保存初始法线方向
+    // Wind parameters
+    public float windStrength = 1000f; // Wind strength
+    // To save the initial normal direction
     private Vector3 initialNormal;
 
     void Start()
     {
-        pointA = new Vector3(0, 0f, 0);
-        pointB = new Vector3(0, 3f, 0);
         mesh = GetComponent<MeshFilter>().mesh;
         originalVertices = mesh.vertices;
         InitializeParticles();
@@ -43,13 +39,13 @@ public class ClothSimulation : MonoBehaviour
         int leftmostIndex = -1;
         int rightmostIndex = -1;
 
-        // 创建粒子并找到左右上角的顶点
+        // Create particles and find the leftmost and rightmost vertices
         for (int i = 0; i < originalVertices.Length; i++)
         {
             Vector3 worldPosition = transform.TransformPoint(originalVertices[i]);
             particles[i] = new Particle(worldPosition);
 
-            // 查找最左和最右的顶点
+            // Find the leftmost and rightmost vertices
             if (worldPosition.x < leftmostX)
             {
                 leftmostX = worldPosition.x;
@@ -62,7 +58,7 @@ public class ClothSimulation : MonoBehaviour
             }
         }
 
-        // 固定左右上角的顶点
+        // Pin the leftmost and rightmost vertices
         if (leftmostIndex != -1)
         {
             particles[leftmostIndex].isPinned = true;
@@ -75,12 +71,11 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-
     void InitializeSprings()
     {
         int[] triangles = mesh.triangles;
 
-        // 遍历三角形，每个三角形由三个顶点组成
+        // Iterate over triangles; each triangle consists of three vertices
         for (int i = 0; i < triangles.Length; i += 3)
         {
             int a = triangles[i];
@@ -95,37 +90,36 @@ public class ClothSimulation : MonoBehaviour
 
     void CalculateInitialNormal()
     {
-        // 获取网格数据
+        // Get mesh data
         int[] triangles = mesh.triangles;
         Vector3[] vertices = mesh.vertices;
 
         if (triangles.Length >= 3)
         {
-            // 获取第一个三角形的三个顶点，并转换为世界坐标
+            // Get the first triangle's vertices and convert to world coordinates
             Vector3 p0 = transform.TransformPoint(vertices[triangles[0]]);
             Vector3 p1 = transform.TransformPoint(vertices[triangles[1]]);
             Vector3 p2 = transform.TransformPoint(vertices[triangles[2]]);
 
-            // 计算法线向量
+            // Calculate the normal vector
             Vector3 normal = Vector3.Cross(p1 - p0, p2 - p0).normalized;
 
-            // 保存初始法线方向
+            // Save the initial normal direction
             initialNormal = normal;
 
-            Debug.Log("初始法线方向：" + initialNormal);
+            Debug.Log("Initial normal direction: " + initialNormal);
         }
         else
         {
-            // 如果网格数据不足，默认使用物体的上方向
+            // If mesh data is insufficient, use the object's up direction by default
             initialNormal = transform.up;
-            Debug.LogWarning("无法计算初始法线方向，使用默认值：" + initialNormal);
+            Debug.LogWarning("Unable to calculate initial normal direction, using default value: " + initialNormal);
         }
     }
 
-
     void AddSpring(int indexA, int indexB)
     {
-        // 确保不重复添加弹簧
+        // Ensure springs are not added twice
         foreach (var spring in springs)
         {
             if ((spring.particleA == particles[indexA] && spring.particleB == particles[indexB]) ||
@@ -141,64 +135,57 @@ public class ClothSimulation : MonoBehaviour
     {
         float deltaTime = Time.deltaTime;
         Debug.Log($"Update is running on GameObject: {gameObject.name}");
-        
-        // 应用重力
+
+        // Apply gravity
         Vector3 gravity = new Vector3(0, -gravityStrength, 0);
         foreach (var particle in particles)
         {
             particle.AddForce(gravity);
         }
 
-        // 更新粒子位置
+        // Update particle positions
         foreach (var particle in particles)
         {
             particle.UpdatePosition(deltaTime);
         }
 
-        // 应用弹簧约束
+        // Apply spring constraints
         foreach (var spring in springs)
         {
             spring.ApplyConstraint();
         }
 
-        // 处理与球体的碰撞
-        if (collisionSphere != null)
+        // Handle collisions with sphere colliders
+        if (sphereColliders != null)
         {
-            // handleSphereCollisionSimple();
-            // handleSphereCollision(collisionSphere.position, collisionSphereRadius);
-            GameObject sphereObject = GameObject.Find("Sphere");
-            SphereCollider sphereCollider = sphereObject.GetComponent<SphereCollider>();
-            handleSphereCollision(sphereCollider);
-        }
-
-        GameObject targetObject = GameObject.Find("Wood");
-        if (targetObject != null)
-        {
-            CapsuleCollider capsuleCollider = targetObject.GetComponent<CapsuleCollider>();
-            if (capsuleCollider != null)
+            foreach (var sphereCollider in sphereColliders)
             {
-                Debug.Log($"CapsuleCollider found on object: {targetObject.name}");
-                handleCapsuleCollision(capsuleCollider);
-            }
-            else
-            {
-                Debug.LogWarning("CapsuleCollider not found on the target object!");
+                if (sphereCollider != null)
+                {
+                    handleSphereCollision(sphereCollider);
+                }
             }
         }
-        else
+
+        // Handle collisions with capsule colliders
+        if (capsuleColliders != null)
         {
-            Debug.LogError("Target object not found in the scene!");
+            foreach (var capsuleCollider in capsuleColliders)
+            {
+                if (capsuleCollider != null)
+                {
+                    handleCapsuleCollision(capsuleCollider);
+                }
+            }
         }
 
-        
-        
-        // 更新网格顶点
+        // Update mesh vertices
         UpdateMesh();
     }
 
     public void ApplyWindForce()
     {
-        StartCoroutine(ApplyWindForDuration(2f)); // 持续施加风力 2 秒
+        StartCoroutine(ApplyWindForDuration(2f)); // Apply wind force for 2 seconds
     }
 
     private IEnumerator ApplyWindForDuration(float duration)
@@ -206,10 +193,10 @@ public class ClothSimulation : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < duration)
         {
-            // 计算风力向量
+            // Calculate wind force vector
             Vector3 windForce = initialNormal.normalized * windStrength;
 
-            // 对每个粒子施加风力
+            // Apply wind force to each particle
             foreach (var particle in particles)
             {
                 particle.AddForce(windForce);
@@ -217,23 +204,6 @@ public class ClothSimulation : MonoBehaviour
 
             elapsed += Time.deltaTime;
             yield return null;
-        }
-    }
-
-
-    void handleSphereCollisionSimple(float sphereRadius)
-    {
-        Vector3 spherePosition = collisionSphere.position;
-
-        foreach (var particle in particles)
-        {
-            Vector3 direction = particle.position - spherePosition;
-            float distance = direction.magnitude;
-
-            if (distance < sphereRadius)
-            {
-                particle.position = spherePosition + direction.normalized * sphereRadius;
-            }
         }
     }
 
@@ -245,28 +215,28 @@ public class ClothSimulation : MonoBehaviour
             return;
         }
 
-        Vector3 spherePosition = sphereCollider.transform.TransformPoint(sphereCollider.center); // 转换为世界坐标
+        Vector3 spherePosition = sphereCollider.transform.TransformPoint(sphereCollider.center); // Convert to world coordinates
         float sphereRadius = sphereCollider.radius;
 
         float deltaR = 0.2f * sphereRadius;
-        float collisionRadius = sphereRadius + deltaR;  // 避免穿模
+        float collisionRadius = sphereRadius + deltaR;  // Prevent clipping
         foreach (var particle in particles)
         {
             Vector3 direction = particle.position - spherePosition;
             float distance = direction.magnitude;
 
-            // 检查粒子是否在球体内部
+            // Check if particle is inside the sphere
             if (distance < collisionRadius)
             {
-                // 将粒子放置在球体表面
+                // Place particle on the sphere surface
                 particle.position = spherePosition + direction.normalized * collisionRadius;
 
-                // 计算碰撞力
+                // Calculate collision force
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
             }
 
-            // 计算摩擦力
+            // Calculate friction force
             Vector3 normal = direction.normalized;
             Vector3 velocity = particle.position - particle.previousPosition;
             Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
@@ -277,59 +247,59 @@ public class ClothSimulation : MonoBehaviour
 
     void handleCapsuleCollision(CapsuleCollider capsuleCollider, float elasticity = 0.05f)
     {
-        // 获取 Transform
+        // Get Transform
         Transform objTransform = capsuleCollider.transform;
 
-        // 获取胶囊体的方向、高度和半径
-        Vector3 center = capsuleCollider.center; // 胶囊体的中心（局部坐标）
+        // Get capsule's direction, height, and radius
+        Vector3 center = capsuleCollider.center; // Capsule's center (local coordinates)
         float height = capsuleCollider.height;
         float capsuleRadius = capsuleCollider.radius;
-        int directionAxis = capsuleCollider.direction; // 主轴方向：0=X, 1=Y, 2=Z
+        int directionAxis = capsuleCollider.direction; // Main axis direction: 0=X, 1=Y, 2=Z
 
-        // 计算偏移量
+        // Calculate offset
         float offset = (height / 2) - capsuleRadius;
 
-        // 根据方向计算偏移向量
+        // Calculate offset vector based on direction
         Vector3 offsetVector = Vector3.zero;
-        if (directionAxis == 0) offsetVector = new Vector3(offset, 0, 0); // X 轴
-        else if (directionAxis == 1) offsetVector = new Vector3(0, offset, 0); // Y 轴
-        else if (directionAxis == 2) offsetVector = new Vector3(0, 0, offset); // Z 轴
+        if (directionAxis == 0) offsetVector = new Vector3(offset, 0, 0); // X-axis
+        else if (directionAxis == 1) offsetVector = new Vector3(0, offset, 0); // Y-axis
+        else if (directionAxis == 2) offsetVector = new Vector3(0, 0, offset); // Z-axis
 
-        // 计算两端的半球中心点（局部坐标）
-        Vector3 pointA = center + offsetVector; // 顶部半球中心
-        Vector3 pointB = center - offsetVector; // 底部半球中心
+        // Calculate the centers of the two hemispherical ends (local coordinates)
+        Vector3 pointA = center + offsetVector; // Top hemisphere center
+        Vector3 pointB = center - offsetVector; // Bottom hemisphere center
 
-        // 转换为世界坐标
+        // Convert to world coordinates
         pointA = objTransform.TransformPoint(pointA);
         pointB = objTransform.TransformPoint(pointB);
         Debug.Log("Point A (Top Hemisphere Center): " + pointA);
         Debug.Log("Point B (Bottom Hemisphere Center): " + pointB);
-        float deltaR = 0.2f *  capsuleRadius;
-        float collisionRadius = capsuleRadius + deltaR;  // 避免穿模
+        float deltaR = 0.2f * capsuleRadius;
+        float collisionRadius = capsuleRadius + deltaR;  // Prevent clipping
 
         foreach (var particle in particles)
         {
-            // 计算粒子到胶囊轴线段的最近点
+            // Calculate the closest point on the capsule line segment to the particle
             Vector3 particlePosition = particle.position;
             Vector3 capsuleDirection = pointB - pointA;
             float capsuleLength = capsuleDirection.magnitude;
             capsuleDirection.Normalize();
 
-            // 将粒子位置投影到胶囊的轴线上，找到最近点
+            // Project the particle position onto the capsule's axis to find the closest point
             float t = Vector3.Dot(particlePosition - pointA, capsuleDirection);
-            t = Mathf.Clamp(t, 0, capsuleLength); // 限制 t 在 [0, capsuleLength] 之间
+            t = Mathf.Clamp(t, 0, capsuleLength); // Clamp t between [0, capsuleLength]
             Vector3 closestPoint = pointA + capsuleDirection * t;
 
-            // 检查粒子是否在胶囊体内部
+            // Check if particle is inside the capsule
             Vector3 direction = particlePosition - closestPoint;
             float distance = direction.magnitude;
 
             if (distance < collisionRadius)
             {
-                // 将粒子放置在胶囊表面
+                // Place particle on the capsule surface
                 particle.position = closestPoint + direction.normalized * collisionRadius;
 
-                // 计算并施加碰撞力
+                // Calculate and apply collision force
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
                 // Debug.Log("Collision:" + particlePosition.ToString());
@@ -366,20 +336,66 @@ public class ClothSimulation : MonoBehaviour
             }
         }
 
-        if (collisionSphere != null)
+        // Draw sphere colliders
+        if (sphereColliders != null)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(collisionSphere.position, collisionSphereRadius);
+            foreach (var sphereCollider in sphereColliders)
+            {
+                if (sphereCollider != null)
+                {
+                    Vector3 spherePosition = sphereCollider.transform.TransformPoint(sphereCollider.center);
+                    float sphereRadius = sphereCollider.radius;
+                    Gizmos.DrawWireSphere(spherePosition, sphereRadius);
+                }
+            }
         }
 
-        /*
-        if (collisionCapsulePointA != null && collisionCapsulePointB != null)
+        // Draw capsule colliders (optional)
+        if (capsuleColliders != null)
         {
             Gizmos.color = Color.blue;
-            ;
-
-        }*/
+            foreach (var capsuleCollider in capsuleColliders)
+            {
+                if (capsuleCollider != null)
+                {
+                    DrawCapsuleGizmo(capsuleCollider);
+                }
+            }
+        }
     }
 
-    
+    // Optional method to draw capsule colliders in Gizmos
+    void DrawCapsuleGizmo(CapsuleCollider capsuleCollider)
+    {
+        Transform objTransform = capsuleCollider.transform;
+
+        Vector3 center = capsuleCollider.center;
+        float height = capsuleCollider.height;
+        float capsuleRadius = capsuleCollider.radius;
+        int directionAxis = capsuleCollider.direction;
+
+        float offset = (height / 2) - capsuleRadius;
+
+        Vector3 offsetVector = Vector3.zero;
+        if (directionAxis == 0) offsetVector = new Vector3(offset, 0, 0); // X-axis
+        else if (directionAxis == 1) offsetVector = new Vector3(0, offset, 0); // Y-axis
+        else if (directionAxis == 2) offsetVector = new Vector3(0, 0, offset); // Z-axis
+
+        Vector3 pointA = center + offsetVector;
+        Vector3 pointB = center - offsetVector;
+
+        pointA = objTransform.TransformPoint(pointA);
+        pointB = objTransform.TransformPoint(pointB);
+
+        // Draw the cylinder part
+        Gizmos.DrawLine(pointA + Vector3.right * capsuleRadius, pointB + Vector3.right * capsuleRadius);
+        Gizmos.DrawLine(pointA - Vector3.right * capsuleRadius, pointB - Vector3.right * capsuleRadius);
+        Gizmos.DrawLine(pointA + Vector3.forward * capsuleRadius, pointB + Vector3.forward * capsuleRadius);
+        Gizmos.DrawLine(pointA - Vector3.forward * capsuleRadius, pointB - Vector3.forward * capsuleRadius);
+
+        // Draw the hemispheres
+        Gizmos.DrawWireSphere(pointA, capsuleRadius);
+        Gizmos.DrawWireSphere(pointB, capsuleRadius);
+    }
 }

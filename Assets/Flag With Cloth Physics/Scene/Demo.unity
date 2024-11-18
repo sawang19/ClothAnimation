@@ -719,6 +719,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 38.120914
       objectReference: {fileID: 0}
+    - target: {fileID: 751176136059791188, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 751176136059791188, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
       propertyPath: m_Name
       value: X Bot@Idle
@@ -1033,6 +1041,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1265952558}
+    - targetCorrespondingSourceObject: {fileID: -3542885339558904099, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 991483541}
+    - targetCorrespondingSourceObject: {fileID: -1781356600409242780, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1747909620}
   m_SourcePrefab: {fileID: 100100000, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
 --- !u!1 &431520598
 GameObject:
@@ -1492,6 +1506,34 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Force: 100
+--- !u!1 &991483539 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -3542885339558904099, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
+  m_PrefabInstance: {fileID: 424286266}
+  m_PrefabAsset: {fileID: 0}
+--- !u!136 &991483541
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 991483539}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.23273775
+  m_Height: 0.80796313
+  m_Direction: 1
+  m_Center: {x: -0.011606903, y: -0.0768665, z: 0.048829228}
 --- !u!1 &1265952555 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
@@ -1927,6 +1969,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1481199147}
   m_CullTransparentMesh: 1
+--- !u!136 &1560642774 stripped
+CapsuleCollider:
+  m_CorrespondingSourceObject: {fileID: 136465995934078916, guid: 63c38037a7afe0747b09e30dc10f30dd, type: 3}
+  m_PrefabInstance: {fileID: 523479752}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1747909618 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -1781356600409242780, guid: b487d8d7374484484ac915be5d1c5f4e, type: 3}
+  m_PrefabInstance: {fileID: 424286266}
+  m_PrefabAsset: {fileID: 0}
+--- !u!135 &1747909620
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1747909618}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.2
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &1818474223 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1608598620035316, guid: 63c38037a7afe0747b09e30dc10f30dd, type: 3}
@@ -1994,11 +2067,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96bfa52b44df64700b912ae66a0ba144, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  collisionSphere: {fileID: 588428752}
-  sphereRadius: 0.5
-  pointA: {x: 0, y: 0, z: 0}
-  pointB: {x: 0, y: 0, z: 0}
-  capsuleRadius: 0.02
+  sphereColliders:
+  - {fileID: 588428750}
+  - {fileID: 1747909620}
+  capsuleColliders:
+  - {fileID: 1560642774}
+  - {fileID: 991483541}
   gravityStrength: 9.81
   stiffness: 0.5
   windStrength: 10
