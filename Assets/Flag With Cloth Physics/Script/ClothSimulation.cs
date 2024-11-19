@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI; 
 using System.Collections.Generic;
 using System.Collections;
 
@@ -20,7 +21,9 @@ public class ClothSimulation : MonoBehaviour
     // Wind parameters
     public float windStrength = 1000f; // Wind strength
     // To save the initial normal direction
+    private Vector3 windDirection;    // Wind direction (calculated from initialNormal and slider)
     private Vector3 initialNormal;
+    public Slider windDirectionSlider; // Reference to the Slider
 
     void Start()
     {
@@ -29,6 +32,16 @@ public class ClothSimulation : MonoBehaviour
         InitializeParticles();
         InitializeSprings();
         CalculateInitialNormal();
+
+        // Set initial wind direction
+        windDirection = initialNormal;
+
+        // Initialize Slider value and add listener
+        if (windDirectionSlider != null)
+        {
+            windDirectionSlider.value = 0.5f; // Middle position (no horizontal offset)
+            windDirectionSlider.onValueChanged.AddListener(UpdateWindDirection);
+        }
     }
 
     void InitializeParticles()
@@ -62,12 +75,12 @@ public class ClothSimulation : MonoBehaviour
         if (leftmostIndex != -1)
         {
             particles[leftmostIndex].isPinned = true;
-            Debug.Log("Leftmost particle pinned at: " + particles[leftmostIndex].position);
+            // Debug.Log("Leftmost particle pinned at: " + particles[leftmostIndex].position);
         }
         if (rightmostIndex != -1)
         {
             particles[rightmostIndex].isPinned = true;
-            Debug.Log("Rightmost particle pinned at: " + particles[rightmostIndex].position);
+            // Debug.Log("Rightmost particle pinned at: " + particles[rightmostIndex].position);
         }
     }
 
@@ -134,7 +147,7 @@ public class ClothSimulation : MonoBehaviour
     void Update()
     {
         float deltaTime = Time.deltaTime;
-        Debug.Log($"Update is running on GameObject: {gameObject.name}");
+        // Debug.Log($"Update is running on GameObject: {gameObject.name}");
 
         // Apply gravity
         Vector3 gravity = new Vector3(0, -gravityStrength, 0);
@@ -183,6 +196,8 @@ public class ClothSimulation : MonoBehaviour
         UpdateMesh();
     }
 
+
+
     public void ApplyWindForce()
     {
         StartCoroutine(ApplyWindForDuration(2f)); // Apply wind force for 2 seconds
@@ -194,7 +209,7 @@ public class ClothSimulation : MonoBehaviour
         while (elapsed < duration)
         {
             // Calculate wind force vector
-            Vector3 windForce = initialNormal.normalized * windStrength;
+            Vector3 windForce = windDirection.normalized * windStrength;
 
             // Apply wind force to each particle
             foreach (var particle in particles)
@@ -206,6 +221,18 @@ public class ClothSimulation : MonoBehaviour
             yield return null;
         }
     }
+
+    void UpdateWindDirection(float sliderValue)
+{
+    // Map slider value (0 to 1) to horizontal offset (-1 to 1)
+    float horizontalOffset = (sliderValue - 0.5f) * 2f;
+
+    // Combine horizontal offset with a fixed vertical component
+    windDirection = new Vector3(horizontalOffset, 0, Mathf.Sqrt(1 - horizontalOffset * horizontalOffset));
+
+    Debug.Log($"Wind Direction Updated: {windDirection}");
+}
+
 
     void handleSphereCollision(SphereCollider sphereCollider, float elasticity = 0.05f, float friction = 0.2f)
     {
