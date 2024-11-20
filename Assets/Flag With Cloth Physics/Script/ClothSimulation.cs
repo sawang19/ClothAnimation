@@ -19,10 +19,18 @@ public class ClothSimulation : MonoBehaviour
     private List<Spring> springs = new List<Spring>();
 
     // Wind parameters
-    public float windStrength = 1000f; // Wind strength
+    public float windStrength = 10f; // Wind strength
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
-    public Slider windDirectionSlider; // Reference to the Slider
+    // 调整升力和阻力系数
+    public float dragCoefficient = 0.5f; // 阻力系数
+    public float liftCoefficient = 0.5f; // 升力系数，增大以增加升力
+
+    // 在 UpdateWindDirection 方法中
+    public float verticalOffset = 0.3f; // 增加垂直分量
+
+    public Toggle windToggle;
+    public Slider windStrengthSlider; 
 
     // Self-collision parameters
     public bool enableSelfCollision = true;
@@ -43,11 +51,15 @@ public class ClothSimulation : MonoBehaviour
         // Set initial wind direction
         windDirection = initialNormal;
 
-        // Initialize Slider value and add listener
-        if (windDirectionSlider != null)
+        if (windToggle != null)
         {
-            windDirectionSlider.value = 0.5f; // Middle position (no horizontal offset)
-            windDirectionSlider.onValueChanged.AddListener(UpdateWindDirection);
+            windToggle.onValueChanged.AddListener(OnWindToggleChanged);
+        }
+
+        if (windStrengthSlider != null)
+        {
+            windStrengthSlider.onValueChanged.AddListener(UpdateWindStrength);
+            UpdateWindStrength(windStrengthSlider.value);
         }
     }
 
@@ -209,6 +221,27 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
+    void OnWindToggleChanged(bool isOn)
+    {
+        if (isOn)
+        {
+            Debug.Log("Wind has been turned ON.");
+            windDirection = initialNormal;
+        }
+        else
+        {
+            Debug.Log("Wind has been turned OFF.");
+        }
+    }
+
+    void UpdateWindStrength(float value)
+    {
+        float minWindStrength = 0f;
+        float maxWindStrength = 6f;
+
+        windStrength = Mathf.Lerp(minWindStrength, maxWindStrength, value);
+    }
+
     void AddSpring(int indexA, int indexB, float springStiffness = -1)
     {
         // Use default stiffness if not specified
@@ -231,11 +264,18 @@ public class ClothSimulation : MonoBehaviour
     {
         float deltaTime = Time.deltaTime;
 
+        CalculateParticleNormals();
         // Apply gravity
         Vector3 gravity = new Vector3(0, -gravityStrength, 0);
         foreach (var particle in particles)
         {
             particle.AddForce(gravity);
+        }
+
+        if (windToggle != null && windToggle.isOn)
+        {
+            // Calculate wind force vector
+            ApplyAerodynamicForces();
         }
 
         // Update particle positions
@@ -291,38 +331,76 @@ public class ClothSimulation : MonoBehaviour
         UpdateMesh();
     }
 
-    public void ApplyWindForce()
+
+    void ApplyAerodynamicForces()
+{
+    foreach (var particle in particles)
     {
-        StartCoroutine(ApplyWindForDuration(2f)); // Apply wind force for 2 seconds
+        // 计算粒子速度
+        Vector3 particleVelocity = particle.GetVelocity();
+
+        // 计算相对风速
+        Vector3 relativeWind = windDirection * windStrength - particleVelocity;
+
+        // 如果相对风速或法线为零向量，跳过计算
+        if (relativeWind == Vector3.zero || particle.normal == Vector3.zero)
+            continue;
+
+        // 归一化向量
+        Vector3 relativeWindDir = relativeWind.normalized;
+        Vector3 normal = particle.normal.normalized;
+
+        // 计算阻力（与相对风速方向相反）
+        Vector3 dragForce = dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
+
+        // 计算升力（正确的方向）
+        Vector3 liftForce = liftCoefficient * Vector3.Cross(relativeWindDir, normal) * relativeWind.sqrMagnitude;
+
+        // 输出力的调试信息
+        Debug.Log($"Drag Force: {dragForce}, Lift Force: {liftForce}");
+
+        // 施加空气动力学力
+        particle.AddForce(dragForce + liftForce);
     }
+}
 
-    private IEnumerator ApplyWindForDuration(float duration)
+
+
+
+    void CalculateParticleNormals()
     {
-        float elapsed = 0f;
-        while (elapsed < duration)
+        // 初始化法线
+        foreach (var particle in particles)
         {
-            // Calculate wind force vector
-            Vector3 windForce = windDirection.normalized * windStrength;
+            particle.normal = Vector3.zero;
+        }
 
-            // Apply wind force to each particle
-            foreach (var particle in particles)
-            {
-                particle.AddForce(windForce);
-            }
+        // 遍历三角形，累加法线
+        int[] triangles = mesh.triangles;
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            int indexA = triangles[i];
+            int indexB = triangles[i + 1];
+            int indexC = triangles[i + 2];
 
-            elapsed += Time.deltaTime;
-            yield return null;
+            Vector3 pA = particles[indexA].position;
+            Vector3 pB = particles[indexB].position;
+            Vector3 pC = particles[indexC].position;
+
+            Vector3 normal = Vector3.Cross(pB - pA, pC - pA).normalized;
+
+            particles[indexA].normal += normal;
+            particles[indexB].normal += normal;
+            particles[indexC].normal += normal;
+        }
+
+        // 归一化法线
+        foreach (var particle in particles)
+        {
+            particle.normal.Normalize();
         }
     }
 
-    void UpdateWindDirection(float sliderValue)
-    {
-        // Map slider value (0 to 1) to horizontal offset (-1 to 1)
-        float horizontalOffset = (sliderValue - 0.5f) * 2f;
-
-        // Combine horizontal offset with a fixed vertical component
-        windDirection = new Vector3(horizontalOffset, 0, Mathf.Sqrt(1 - horizontalOffset * horizontalOffset));
-    }
 
     void HandleSphereCollision(SphereCollider sphereCollider, float elasticity = 0.05f, float friction = 0.2f)
     {
