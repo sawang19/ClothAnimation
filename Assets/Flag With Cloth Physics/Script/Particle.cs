@@ -6,6 +6,9 @@ public class Particle
     public Vector3 previousPosition;
     public Vector3 acceleration;
     public bool isPinned;
+    public int id; // Unique identifier
+
+    private static int nextId = 0; // Static variable to assign unique IDs
 
     public Particle(Vector3 initialPosition)
     {
@@ -13,6 +16,7 @@ public class Particle
         previousPosition = initialPosition;
         acceleration = Vector3.zero;
         isPinned = false;
+        id = nextId++;
     }
 
     public void AddForce(Vector3 force)
@@ -25,11 +29,11 @@ public class Particle
 
     public void UpdatePosition(float deltaTime, float damping = 0.98f)
     {
-        if (!isPinned) 
+        if (!isPinned)
         {
             // Verlet integration for more stable cloth simulation
             Vector3 velocity = position - previousPosition;
-            velocity *= damping; // 阻尼
+            velocity *= damping; // Damping
             Vector3 newPosition = position + velocity + acceleration * deltaTime * deltaTime;
             previousPosition = position;
             position = newPosition;

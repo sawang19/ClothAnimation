@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; 
+using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Collections;
 
@@ -20,10 +20,17 @@ public class ClothSimulation : MonoBehaviour
 
     // Wind parameters
     public float windStrength = 1000f; // Wind strength
-    // To save the initial normal direction
-    private Vector3 windDirection;    // Wind direction (calculated from initialNormal and slider)
+    private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
     public Slider windDirectionSlider; // Reference to the Slider
+
+    // Self-collision parameters
+    public bool enableSelfCollision = true;
+    public bool enableBendingSpring = true;
+    public float foldingFactor = 1.0f;
+    private float particleRadius = 0.2f;    // Approximate radius of a particle
+    private int maxParticlesPerNode = 8;    // Max particles per octree node
+    private int maxOctreeDepth = 6;         // Max depth of the octree
 
     void Start()
     {
@@ -75,12 +82,10 @@ public class ClothSimulation : MonoBehaviour
         if (leftmostIndex != -1)
         {
             particles[leftmostIndex].isPinned = true;
-            // Debug.Log("Leftmost particle pinned at: " + particles[leftmostIndex].position);
         }
         if (rightmostIndex != -1)
         {
             particles[rightmostIndex].isPinned = true;
-            // Debug.Log("Rightmost particle pinned at: " + particles[rightmostIndex].position);
         }
     }
 
@@ -98,6 +103,83 @@ public class ClothSimulation : MonoBehaviour
             AddSpring(a, b);
             AddSpring(b, c);
             AddSpring(c, a);
+        }
+
+        // Add bending springs
+        if (enableBendingSpring)
+        {
+            AddBendingSprings();
+        }
+
+    }
+
+    void AddBendingSprings()
+    {
+        // Create bending springs between particles that are two edges apart
+        Dictionary<(int, int), List<int>> edgeToTriangles = new Dictionary<(int, int), List<int>>();
+
+        int[] triangles = mesh.triangles;
+        // Build a map of edges to triangles
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            int[] tri = new int[] { triangles[i], triangles[i + 1], triangles[i + 2] };
+
+            for (int j = 0; j < 3; j++)
+            {
+                int a = tri[j];
+                int b = tri[(j + 1) % 3];
+
+                var edge = (Mathf.Min(a, b), Mathf.Max(a, b));
+                if (!edgeToTriangles.ContainsKey(edge))
+                {
+                    edgeToTriangles[edge] = new List<int>();
+                }
+                edgeToTriangles[edge].Add(i / 3);
+            }
+        }
+
+        // For each edge shared by two triangles, add a bending spring between the opposite vertices
+        foreach (var kvp in edgeToTriangles)
+        {
+            if (kvp.Value.Count == 2)
+            {
+                int tri1 = kvp.Value[0];
+                int tri2 = kvp.Value[1];
+
+                int[] tri1Verts = new int[] { triangles[tri1 * 3], triangles[tri1 * 3 + 1], triangles[tri1 * 3 + 2] };
+                int[] tri2Verts = new int[] { triangles[tri2 * 3], triangles[tri2 * 3 + 1], triangles[tri2 * 3 + 2] };
+
+                int sharedA = kvp.Key.Item1;
+                int sharedB = kvp.Key.Item2;
+
+                int oppositeA = -1;
+                int oppositeB = -1;
+
+                foreach (int v in tri1Verts)
+                {
+                    if (v != sharedA && v != sharedB)
+                    {
+                        oppositeA = v;
+                        break;
+                    }
+                }
+
+                foreach (int v in tri2Verts)
+                {
+                    if (v != sharedA && v != sharedB)
+                    {
+                        oppositeB = v;
+                        break;
+                    }
+                }
+
+                if (oppositeA != -1 && oppositeB != -1)
+                {
+                    // Reduce bending stiffness to allow more folding
+                    float bendingStiffness = stiffness * foldingFactor;
+                    AddSpring(oppositeA, oppositeB, bendingStiffness); // Bending springs are usually softer
+                }
+            }
         }
     }
 
@@ -119,19 +201,20 @@ public class ClothSimulation : MonoBehaviour
 
             // Save the initial normal direction
             initialNormal = normal;
-
-            Debug.Log("Initial normal direction: " + initialNormal);
         }
         else
         {
             // If mesh data is insufficient, use the object's up direction by default
             initialNormal = transform.up;
-            Debug.LogWarning("Unable to calculate initial normal direction, using default value: " + initialNormal);
         }
     }
 
-    void AddSpring(int indexA, int indexB)
+    void AddSpring(int indexA, int indexB, float springStiffness = -1)
     {
+        // Use default stiffness if not specified
+        if (springStiffness < 0)
+            springStiffness = stiffness;
+
         // Ensure springs are not added twice
         foreach (var spring in springs)
         {
@@ -141,13 +224,12 @@ public class ClothSimulation : MonoBehaviour
                 return;
             }
         }
-        springs.Add(new Spring(particles[indexA], particles[indexB], stiffness));
+        springs.Add(new Spring(particles[indexA], particles[indexB], springStiffness));
     }
 
     void Update()
     {
         float deltaTime = Time.deltaTime;
-        // Debug.Log($"Update is running on GameObject: {gameObject.name}");
 
         // Apply gravity
         Vector3 gravity = new Vector3(0, -gravityStrength, 0);
@@ -159,44 +241,55 @@ public class ClothSimulation : MonoBehaviour
         // Update particle positions
         foreach (var particle in particles)
         {
-            particle.UpdatePosition(deltaTime);
+            // Reduce damping to allow particles to move more freely
+            particle.UpdatePosition(deltaTime, damping: 0.99f);
         }
 
-        // Apply spring constraints
-        foreach (var spring in springs)
+        // Apply constraints multiple times for better stability
+        int constraintIterations = 5;
+        for (int iteration = 0; iteration < constraintIterations; iteration++)
         {
-            spring.ApplyConstraint();
-        }
-
-        // Handle collisions with sphere colliders
-        if (sphereColliders != null)
-        {
-            foreach (var sphereCollider in sphereColliders)
+            // Apply spring constraints
+            foreach (var spring in springs)
             {
-                if (sphereCollider != null)
+                spring.ApplyConstraint();
+            }
+
+            // Handle collisions with sphere colliders
+            if (sphereColliders != null)
+            {
+                foreach (var sphereCollider in sphereColliders)
                 {
-                    handleSphereCollision(sphereCollider);
+                    if (sphereCollider != null)
+                    {
+                        HandleSphereCollision(sphereCollider);
+                    }
                 }
             }
-        }
 
-        // Handle collisions with capsule colliders
-        if (capsuleColliders != null)
-        {
-            foreach (var capsuleCollider in capsuleColliders)
+            // Handle collisions with capsule colliders
+            if (capsuleColliders != null)
             {
-                if (capsuleCollider != null)
+                foreach (var capsuleCollider in capsuleColliders)
                 {
-                    handleCapsuleCollision(capsuleCollider);
+                    if (capsuleCollider != null)
+                    {
+                        HandleCapsuleCollision(capsuleCollider);
+                    }
                 }
             }
+
+            // Handle self-collision
+            if (enableSelfCollision)
+            {
+                HandleSelfCollision();
+            }
+
         }
 
         // Update mesh vertices
         UpdateMesh();
     }
-
-
 
     public void ApplyWindForce()
     {
@@ -223,18 +316,15 @@ public class ClothSimulation : MonoBehaviour
     }
 
     void UpdateWindDirection(float sliderValue)
-{
-    // Map slider value (0 to 1) to horizontal offset (-1 to 1)
-    float horizontalOffset = (sliderValue - 0.5f) * 2f;
+    {
+        // Map slider value (0 to 1) to horizontal offset (-1 to 1)
+        float horizontalOffset = (sliderValue - 0.5f) * 2f;
 
-    // Combine horizontal offset with a fixed vertical component
-    windDirection = new Vector3(horizontalOffset, 0, Mathf.Sqrt(1 - horizontalOffset * horizontalOffset));
+        // Combine horizontal offset with a fixed vertical component
+        windDirection = new Vector3(horizontalOffset, 0, Mathf.Sqrt(1 - horizontalOffset * horizontalOffset));
+    }
 
-    Debug.Log($"Wind Direction Updated: {windDirection}");
-}
-
-
-    void handleSphereCollision(SphereCollider sphereCollider, float elasticity = 0.05f, float friction = 0.2f)
+    void HandleSphereCollision(SphereCollider sphereCollider, float elasticity = 0.05f, float friction = 0.2f)
     {
         if (sphereCollider == null)
         {
@@ -243,9 +333,12 @@ public class ClothSimulation : MonoBehaviour
         }
 
         Vector3 spherePosition = sphereCollider.transform.TransformPoint(sphereCollider.center); // Convert to world coordinates
-        float sphereRadius = sphereCollider.radius;
+        float sphereRadius = sphereCollider.radius * Mathf.Max(
+            sphereCollider.transform.lossyScale.x,
+            sphereCollider.transform.lossyScale.y,
+            sphereCollider.transform.lossyScale.z); // Adjust for scale
 
-        float deltaR = 0.2f * sphereRadius;
+        float deltaR = 0.02f * sphereRadius;
         float collisionRadius = sphereRadius + deltaR;  // Prevent clipping
         foreach (var particle in particles)
         {
@@ -256,7 +349,8 @@ public class ClothSimulation : MonoBehaviour
             if (distance < collisionRadius)
             {
                 // Place particle on the sphere surface
-                particle.position = spherePosition + direction.normalized * collisionRadius;
+                Vector3 correctedPosition = spherePosition + direction.normalized * collisionRadius;
+                particle.position = correctedPosition;
 
                 // Calculate collision force
                 Vector3 collisionForce = direction.normalized * elasticity;
@@ -267,12 +361,12 @@ public class ClothSimulation : MonoBehaviour
             Vector3 normal = direction.normalized;
             Vector3 velocity = particle.position - particle.previousPosition;
             Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
-            Vector3 frictionForce = -tangentialVelocity.normalized * tangentialVelocity.magnitude * friction;
+            Vector3 frictionForce = -tangentialVelocity * friction;
             particle.AddForce(frictionForce);
         }
     }
 
-    void handleCapsuleCollision(CapsuleCollider capsuleCollider, float elasticity = 0.05f)
+    void HandleCapsuleCollision(CapsuleCollider capsuleCollider, float elasticity = 0.05f)
     {
         // Get Transform
         Transform objTransform = capsuleCollider.transform;
@@ -283,8 +377,13 @@ public class ClothSimulation : MonoBehaviour
         float capsuleRadius = capsuleCollider.radius;
         int directionAxis = capsuleCollider.direction; // Main axis direction: 0=X, 1=Y, 2=Z
 
+        // Adjust for scale
+        Vector3 lossyScale = objTransform.lossyScale;
+        capsuleRadius *= Mathf.Max(lossyScale.x, lossyScale.y, lossyScale.z);
+        height *= lossyScale[directionAxis];
+
         // Calculate offset
-        float offset = (height / 2) - capsuleRadius;
+        float offset = Mathf.Max(0, (height / 2) - capsuleRadius);
 
         // Calculate offset vector based on direction
         Vector3 offsetVector = Vector3.zero;
@@ -299,9 +398,8 @@ public class ClothSimulation : MonoBehaviour
         // Convert to world coordinates
         pointA = objTransform.TransformPoint(pointA);
         pointB = objTransform.TransformPoint(pointB);
-        Debug.Log("Point A (Top Hemisphere Center): " + pointA);
-        Debug.Log("Point B (Bottom Hemisphere Center): " + pointB);
-        float deltaR = 0.2f * capsuleRadius;
+
+        float deltaR = 0.02f * capsuleRadius;
         float collisionRadius = capsuleRadius + deltaR;  // Prevent clipping
 
         foreach (var particle in particles)
@@ -324,14 +422,112 @@ public class ClothSimulation : MonoBehaviour
             if (distance < collisionRadius)
             {
                 // Place particle on the capsule surface
-                particle.position = closestPoint + direction.normalized * collisionRadius;
+                Vector3 correctedPosition = closestPoint + direction.normalized * collisionRadius;
+                particle.position = correctedPosition;
 
                 // Calculate and apply collision force
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
-                // Debug.Log("Collision:" + particlePosition.ToString());
             }
         }
+    }
+
+    void HandleSelfCollision()
+    {
+        // Calculate the bounds of all particles
+        Bounds octreeBounds = CalculateBounds();
+
+        // Create the octree
+        Octree octree = new Octree(octreeBounds, maxParticlesPerNode, maxOctreeDepth);
+
+        // Insert particles into the octree
+        foreach (var particle in particles)
+        {
+            octree.Insert(particle);
+        }
+
+        // For each particle, query neighboring particles
+        foreach (var particle in particles)
+        {
+            // Search radius for neighboring particles
+            float searchRadius = particleRadius * 2f;
+
+            // Get neighboring particles
+            List<Particle> neighbors = octree.Query(particle.position, searchRadius);
+
+            foreach (var neighbor in neighbors)
+            {
+                if (neighbor == particle)
+                    continue;
+
+                // Ignore particles connected by springs
+                if (AreParticlesConnected(particle, neighbor))
+                    continue;
+
+                // Prevent checking the same pair twice
+                if (particle.id >= neighbor.id)
+                    continue;
+
+                // Check collision
+                Vector3 delta = neighbor.position - particle.position;
+                float distanceSquared = delta.sqrMagnitude;
+
+                float minDistance = particleRadius * 1.5f;
+                float minDistanceSquared = minDistance * minDistance;
+
+                if (distanceSquared < minDistanceSquared)
+                {
+                    float distance = Mathf.Sqrt(distanceSquared);
+                    // Resolve collision
+                    Vector3 correction = delta.normalized * (minDistance - distance) * 0.5f;
+
+                    if (!particle.isPinned && !neighbor.isPinned)
+                    {
+                        particle.position -= correction;
+                        neighbor.position += correction;
+                    }
+                    else if (!particle.isPinned)
+                    {
+                        particle.position -= correction * 2f;
+                    }
+                    else if (!neighbor.isPinned)
+                    {
+                        neighbor.position += correction * 2f;
+                    }
+                }
+            }
+        }
+    }
+
+    bool AreParticlesConnected(Particle a, Particle b)
+    {
+        // Check if particles are connected by a spring
+        foreach (var spring in springs)
+        {
+            if ((spring.particleA == a && spring.particleB == b) ||
+                (spring.particleA == b && spring.particleB == a))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Bounds CalculateBounds()
+    {
+        if (particles == null || particles.Length == 0)
+        {
+            return new Bounds(Vector3.zero, Vector3.zero);
+        }
+
+        Bounds bounds = new Bounds(particles[0].position, Vector3.zero);
+        foreach (var particle in particles)
+        {
+            bounds.Encapsulate(particle.position);
+        }
+        // Expand bounds slightly to ensure all particles are within
+        bounds.Expand(particleRadius * 2f);
+        return bounds;
     }
 
     void UpdateMesh()
@@ -349,14 +545,16 @@ public class ClothSimulation : MonoBehaviour
     {
         if (particles != null)
         {
+            Gizmos.color = Color.green;
             foreach (var particle in particles)
             {
-                Gizmos.DrawSphere(particle.position, 0.02f);
+                Gizmos.DrawSphere(particle.position, particleRadius * 0.5f);
             }
         }
 
         if (springs != null)
         {
+            Gizmos.color = Color.white;
             foreach (var spring in springs)
             {
                 Gizmos.DrawLine(spring.particleA.position, spring.particleB.position);
@@ -372,13 +570,16 @@ public class ClothSimulation : MonoBehaviour
                 if (sphereCollider != null)
                 {
                     Vector3 spherePosition = sphereCollider.transform.TransformPoint(sphereCollider.center);
-                    float sphereRadius = sphereCollider.radius;
+                    float sphereRadius = sphereCollider.radius * Mathf.Max(
+                        sphereCollider.transform.lossyScale.x,
+                        sphereCollider.transform.lossyScale.y,
+                        sphereCollider.transform.lossyScale.z);
                     Gizmos.DrawWireSphere(spherePosition, sphereRadius);
                 }
             }
         }
 
-        // Draw capsule colliders (optional)
+        // Draw capsule colliders
         if (capsuleColliders != null)
         {
             Gizmos.color = Color.blue;
@@ -392,7 +593,7 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-    // Optional method to draw capsule colliders in Gizmos
+    // Method to draw capsule colliders in Gizmos
     void DrawCapsuleGizmo(CapsuleCollider capsuleCollider)
     {
         Transform objTransform = capsuleCollider.transform;
@@ -402,7 +603,12 @@ public class ClothSimulation : MonoBehaviour
         float capsuleRadius = capsuleCollider.radius;
         int directionAxis = capsuleCollider.direction;
 
-        float offset = (height / 2) - capsuleRadius;
+        // Adjust for scale
+        Vector3 lossyScale = objTransform.lossyScale;
+        capsuleRadius *= Mathf.Max(lossyScale.x, lossyScale.y, lossyScale.z);
+        height *= lossyScale[directionAxis];
+
+        float offset = Mathf.Max(0, (height / 2) - capsuleRadius);
 
         Vector3 offsetVector = Vector3.zero;
         if (directionAxis == 0) offsetVector = new Vector3(offset, 0, 0); // X-axis
@@ -416,13 +622,14 @@ public class ClothSimulation : MonoBehaviour
         pointB = objTransform.TransformPoint(pointB);
 
         // Draw the cylinder part
-        Gizmos.DrawLine(pointA + Vector3.right * capsuleRadius, pointB + Vector3.right * capsuleRadius);
-        Gizmos.DrawLine(pointA - Vector3.right * capsuleRadius, pointB - Vector3.right * capsuleRadius);
-        Gizmos.DrawLine(pointA + Vector3.forward * capsuleRadius, pointB + Vector3.forward * capsuleRadius);
-        Gizmos.DrawLine(pointA - Vector3.forward * capsuleRadius, pointB - Vector3.forward * capsuleRadius);
+        Gizmos.DrawLine(pointA + objTransform.right * capsuleRadius, pointB + objTransform.right * capsuleRadius);
+        Gizmos.DrawLine(pointA - objTransform.right * capsuleRadius, pointB - objTransform.right * capsuleRadius);
+        Gizmos.DrawLine(pointA + objTransform.forward * capsuleRadius, pointB + objTransform.forward * capsuleRadius);
+        Gizmos.DrawLine(pointA - objTransform.forward * capsuleRadius, pointB - objTransform.forward * capsuleRadius);
 
         // Draw the hemispheres
         Gizmos.DrawWireSphere(pointA, capsuleRadius);
         Gizmos.DrawWireSphere(pointB, capsuleRadius);
     }
 }
+

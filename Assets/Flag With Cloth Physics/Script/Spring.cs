@@ -32,12 +32,12 @@ public class Spring
             particleB.position -= offset;
         }
 
-        // 计算相对速度，并施加阻尼力
-        Vector3 relativeVelocity = (particleB.position - particleB.previousPosition) - 
-                               (particleA.position - particleA.previousPosition);
-        // 计算阻尼力，方向与相对速度相反
+        // Calculate relative velocity and apply damping force
+        Vector3 relativeVelocity = (particleB.position - particleB.previousPosition) -
+                                   (particleA.position - particleA.previousPosition);
+        // Calculate damping force, opposite to relative velocity
         Vector3 dampingForce = -relativeVelocity * dampingFactor;
-        // 将阻尼力应用到粒子加速度中
+        // Apply damping force to particle acceleration
         if (!particleA.isPinned)
         {
             particleA.AddForce(dampingForce * -0.5f);
