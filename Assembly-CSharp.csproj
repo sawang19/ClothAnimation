@@ -87,6 +87,7 @@
     <Compile Include="Assets/PostProcessing/Runtime/Components/AmbientOcclusionComponent.cs" />
     <Compile Include="Assets/PostProcessing/Runtime/Models/DepthOfFieldModel.cs" />
     <Compile Include="Assets/PostProcessing/Runtime/Components/DepthOfFieldComponent.cs" />
+    <Compile Include="Assets/Flag With Cloth Physics/Script/Octree.cs" />
     <Compile Include="Assets/PostProcessing/Runtime/Utils/ColorGradingCurve.cs" />
     <Compile Include="Assets/PostProcessing/Runtime/Models/BloomModel.cs" />
     <Compile Include="Assets/PostProcessing/Runtime/Components/FogComponent.cs" />

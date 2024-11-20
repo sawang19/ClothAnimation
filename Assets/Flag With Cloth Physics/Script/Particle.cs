@@ -9,6 +9,7 @@ public class Particle
     public int id; // Unique identifier
 
     private static int nextId = 0; // Static variable to assign unique IDs
+    public Vector3 normal;
 
     public Particle(Vector3 initialPosition)
     {
@@ -41,5 +42,10 @@ public class Particle
 
         // Reset acceleration after each frame
         acceleration = Vector3.zero;
+    }
+
+    public Vector3 GetVelocity()
+    {
+        return position - previousPosition;
     }
 }
