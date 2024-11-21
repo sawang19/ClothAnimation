@@ -26,10 +26,10 @@ public class ClothSimulation : MonoBehaviour
     public float dragCoefficient = 0.5f; // 阻力系数
     public float liftCoefficient = 0.5f; // 升力系数，增大以增加升力
 
-    // 在 UpdateWindDirection 方法中
     public float verticalOffset = 0.3f; // 增加垂直分量
 
     public Toggle windToggle;
+    public Toggle xWindToggle;         // New toggle for x-axis wind
     public Slider windStrengthSlider; 
 
     // Self-collision parameters
@@ -54,6 +54,11 @@ public class ClothSimulation : MonoBehaviour
         if (windToggle != null)
         {
             windToggle.onValueChanged.AddListener(OnWindToggleChanged);
+        }
+
+        if (xWindToggle != null)
+        {
+            xWindToggle.onValueChanged.AddListener(OnXWindToggleChanged);
         }
 
         if (windStrengthSlider != null)
@@ -227,10 +232,39 @@ public class ClothSimulation : MonoBehaviour
         {
             Debug.Log("Wind has been turned ON.");
             windDirection = initialNormal;
+            if (xWindToggle != null && xWindToggle.isOn)
+            {
+                xWindToggle.isOn = false;
+            }
         }
         else
         {
             Debug.Log("Wind has been turned OFF.");
+            if (!xWindToggle.isOn) // 当 xWindToggle 也没开时，重置风力方向
+            {
+                windDirection = Vector3.zero;
+            }
+        }
+    }
+
+    void OnXWindToggleChanged(bool isOn)
+    {
+        if (isOn)
+        {
+            Debug.Log("X-axis wind turned ON.");
+            windDirection = new Vector3(1, 0, 0.5f).normalized;
+            if (windToggle != null && windToggle.isOn)
+            {
+                windToggle.isOn = false;
+            }
+        }
+        else
+        {
+            Debug.Log("X-axis wind turned OFF.");
+            if (!windToggle.isOn)
+            {
+                windDirection = Vector3.zero;
+            }
         }
     }
 
@@ -272,9 +306,8 @@ public class ClothSimulation : MonoBehaviour
             particle.AddForce(gravity);
         }
 
-        if (windToggle != null && windToggle.isOn)
+        if (windDirection != Vector3.zero && windStrength > 0f)
         {
-            // Calculate wind force vector
             ApplyAerodynamicForces();
         }
 
