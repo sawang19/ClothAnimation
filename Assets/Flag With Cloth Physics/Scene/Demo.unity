@@ -2762,8 +2762,8 @@ MonoBehaviour:
   gravityStrength: 9.81
   stiffness: 0.5
   windStrength: 10
-  dragCoefficient: 0.5
-  liftCoefficient: 0.8
+  dragCoefficient: 0.01
+  liftCoefficient: 0.2
   verticalOffset: 0.3
   windToggle: {fileID: 630405946}
   xWindToggle: {fileID: 465992589}

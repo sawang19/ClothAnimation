@@ -23,8 +23,8 @@ public class ClothSimulation : MonoBehaviour
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
     // 调整升力和阻力系数
-    public float dragCoefficient = 0.5f; // 阻力系数
-    public float liftCoefficient = 0.5f; // 升力系数，增大以增加升力
+    public float dragCoefficient = 0.01f; // 阻力系数
+    public float liftCoefficient = 0.2f; // 升力系数，增大以增加升力
 
     public float verticalOffset = 0.3f; // 增加垂直分量
 
@@ -271,7 +271,7 @@ public class ClothSimulation : MonoBehaviour
     void UpdateWindStrength(float value)
     {
         float minWindStrength = 0f;
-        float maxWindStrength = 6f;
+        float maxWindStrength = 20f;
 
         windStrength = Mathf.Lerp(minWindStrength, maxWindStrength, value);
     }
@@ -309,6 +309,7 @@ public class ClothSimulation : MonoBehaviour
         if (windDirection != Vector3.zero && windStrength > 0f)
         {
             ApplyAerodynamicForces();
+            ApplyBaseWindForce();
         }
 
         // Update particle positions
@@ -364,6 +365,18 @@ public class ClothSimulation : MonoBehaviour
         UpdateMesh();
     }
 
+    void ApplyBaseWindForce()
+{
+    foreach (var particle in particles)
+    {
+        if (!particle.isPinned) // 不对固定的粒子施加风力
+        {
+            // 基础风力，直接与风速成正比
+            Vector3 baseWindForce = windDirection * windStrength;
+            particle.AddForce(baseWindForce);
+        }
+    }
+}
 
     void ApplyAerodynamicForces()
 {
@@ -384,13 +397,13 @@ public class ClothSimulation : MonoBehaviour
         Vector3 normal = particle.normal.normalized;
 
         // 计算阻力（与相对风速方向相反）
-        Vector3 dragForce = dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
+        Vector3 dragForce = -dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
 
         // 计算升力（正确的方向）
         Vector3 liftForce = liftCoefficient * Vector3.Cross(relativeWindDir, normal) * relativeWind.sqrMagnitude;
 
         // 输出力的调试信息
-        Debug.Log($"Drag Force: {dragForce}, Lift Force: {liftForce}");
+        Debug.Log($"Wind: {windDirection * windStrength}, Wind direction: {relativeWindDir}, Drag Force: {dragForce}, Lift Force: {liftForce}");
 
         // 施加空气动力学力
         particle.AddForce(dragForce + liftForce);
