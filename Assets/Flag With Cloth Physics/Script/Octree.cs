@@ -90,9 +90,9 @@ public class Octree
             for (int i = 0; i < 8; i++)
             {
                 Vector3 newCenter = center;
-                newCenter.x += size.x * ((i & 1) == 0 ? -0.25f : 0.25f);
-                newCenter.y += size.y * ((i & 2) == 0 ? -0.25f : 0.25f);
-                newCenter.z += size.z * ((i & 4) == 0 ? -0.25f : 0.25f);
+                newCenter.x += size.x * ((i & 1) == 0 ? -0.5f : 0.5f);
+                newCenter.y += size.y * ((i & 2) == 0 ? -0.5f : 0.5f);
+                newCenter.z += size.z * ((i & 4) == 0 ? -0.5f : 0.5f);
 
                 Bounds childBounds = new Bounds(newCenter, size);
                 children[i] = new OctreeNode(childBounds, maxParticlesPerNode, maxDepth);
