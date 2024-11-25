@@ -22,13 +22,14 @@ public class ClothSimulation : MonoBehaviour
     public float windStrength = 10f; // Wind strength
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
-    public float dragCoefficient = 0.01f;
-    public float liftCoefficient = 0.2f;
+    // 调整升力和阻力系数
+    public float dragCoefficient = 0.01f; 
+    public float liftCoefficient = 0.2f; 
 
-    public float verticalOffset = 0.3f;
+    public float verticalOffset = 0.3f; 
 
     public Toggle windToggle;
-    public Toggle xWindToggle;
+    public Toggle xWindToggle;        
     public Slider windStrengthSlider; 
 
     // Self-collision parameters
@@ -56,14 +57,11 @@ public class ClothSimulation : MonoBehaviour
         Debug.Log($"Vertices: {mesh.vertexCount}");
         Debug.Log($"UVs: {mesh.uv.Length}");
         Debug.Log($"Triangles: {mesh.triangles.Length / 3}");
-
         originalVertices = mesh.vertices;
         InitializeParticles();
         InitializeSprings();
         CalculateInitialNormal();
-
         Debug.Log($"Springs: {springs.Count}");
-
         // Set initial wind direction
         windDirection = initialNormal;
 
@@ -256,7 +254,7 @@ public class ClothSimulation : MonoBehaviour
         else
         {
             Debug.Log("Wind has been turned OFF.");
-            if (!xWindToggle.isOn)
+            if (!xWindToggle.isOn) 
             {
                 windDirection = Vector3.zero;
             }
@@ -385,8 +383,9 @@ public class ClothSimulation : MonoBehaviour
 {
     foreach (var particle in particles)
     {
-        if (!particle.isPinned)
+        if (!particle.isPinned) 
         {
+            
             Vector3 baseWindForce = windDirection * windStrength;
             particle.AddForce(baseWindForce);
         }
@@ -397,19 +396,30 @@ public class ClothSimulation : MonoBehaviour
 {
     foreach (var particle in particles)
     {
+        
         Vector3 particleVelocity = particle.GetVelocity();
+
+        
         Vector3 relativeWind = windDirection * windStrength - particleVelocity;
+
+        
         if (relativeWind == Vector3.zero || particle.normal == Vector3.zero)
             continue;
 
+       
         Vector3 relativeWindDir = relativeWind.normalized;
         Vector3 normal = particle.normal.normalized;
 
+        
         Vector3 dragForce = -dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
+
+      
         Vector3 liftForce = liftCoefficient * Vector3.Cross(relativeWindDir, normal) * relativeWind.sqrMagnitude;
 
+        
         Debug.Log($"Wind: {windDirection * windStrength}, Wind direction: {relativeWindDir}, Drag Force: {dragForce}, Lift Force: {liftForce}");
 
+       
         particle.AddForce(dragForce + liftForce);
     }
 }
@@ -419,11 +429,13 @@ public class ClothSimulation : MonoBehaviour
 
     void CalculateParticleNormals()
     {
+        // 初始化法线
         foreach (var particle in particles)
         {
             particle.normal = Vector3.zero;
         }
 
+        
         int[] triangles = mesh.triangles;
         for (int i = 0; i < triangles.Length; i += 3)
         {
@@ -442,6 +454,7 @@ public class ClothSimulation : MonoBehaviour
             particles[indexC].normal += normal;
         }
 
+       
         foreach (var particle in particles)
         {
             particle.normal.Normalize();
@@ -563,12 +576,14 @@ public class ClothSimulation : MonoBehaviour
         Bounds octreeBounds = CalculateBounds();
 
         // Create the octree
-        Octree octree = new Octree(octreeBounds, maxParticlesPerNode, maxOctreeDepth);
+        // Octree octree = new Octree(octreeBounds, maxParticlesPerNode, maxOctreeDepth);
+        SpatialHash spatialHash = new SpatialHash(particleRadius * 2.5f);
 
         // Insert particles into the octree
         foreach (var particle in particles)
         {
-            octree.Insert(particle);
+            // octree.Insert(particle);
+            spatialHash.Insert(particle);
         }
 
         // For each particle, query neighboring particles
@@ -578,7 +593,9 @@ public class ClothSimulation : MonoBehaviour
             float searchRadius = particleRadius * 2f;
 
             // Get neighboring particles
-            List<Particle> neighbors = octree.Query(particle.position, searchRadius);
+            // List<Particle> neighbors = octree.Query(particle.position, searchRadius);
+            List<Particle> neighbors = spatialHash.Query(particle.position, searchRadius);
+
 
             foreach (var neighbor in neighbors)
             {

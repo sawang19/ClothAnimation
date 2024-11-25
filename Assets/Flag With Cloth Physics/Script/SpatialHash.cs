@@ -3,60 +3,95 @@ using System.Collections.Generic;
 
 public class SpatialHash
 {
-    private Dictionary<Vector3Int, List<Particle>> cells;
-    private float cellSize;
+    private readonly float cellSize;
+    private readonly Dictionary<Int3, List<Particle>> grid;
 
     public SpatialHash(float cellSize)
     {
         this.cellSize = cellSize;
-        cells = new Dictionary<Vector3Int, List<Particle>>();
+        this.grid = new Dictionary<Int3, List<Particle>>();
     }
 
-    // Hash function to map a position to a cell coordinate
-    private Vector3Int HashPosition(Vector3 position)
+    // 3D integer coordinate structure
+    private struct Int3
     {
-        return new Vector3Int(
+        public int x, y, z;
+
+        public Int3(int x, int y, int z)
+        {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (!(obj is Int3)) return false;
+            Int3 other = (Int3)obj;
+            return x == other.x && y == other.y && z == other.z;
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 23 + x.GetHashCode();
+                hash = hash * 23 + y.GetHashCode();
+                hash = hash * 23 + z.GetHashCode();
+                return hash;
+            }
+        }
+    }
+
+    // Get the grid cell coordinates where the particle is located
+    private Int3 GetCell(Vector3 position)
+    {
+        return new Int3(
             Mathf.FloorToInt(position.x / cellSize),
             Mathf.FloorToInt(position.y / cellSize),
             Mathf.FloorToInt(position.z / cellSize)
         );
     }
 
-    // Insert a particle into the spatial hash
+    // Insert a particle
     public void Insert(Particle particle)
     {
-        Vector3Int cell = HashPosition(particle.position);
-
-        if (!cells.ContainsKey(cell))
+        Int3 cell = GetCell(particle.position);
+        if (!grid.TryGetValue(cell, out var cellList))
         {
-            cells[cell] = new List<Particle>();
+            cellList = new List<Particle>();
+            grid[cell] = cellList;
         }
-        cells[cell].Add(particle);
+        cellList.Add(particle);
     }
 
-    // Query neighboring particles within a certain radius
-    public List<Particle> QueryNeighbors(Particle particle, float searchRadius)
+    // Query neighboring particles
+    public List<Particle> Query(Vector3 position, float radius)
     {
-        List<Particle> neighbors = new List<Particle>();
-        int searchRange = Mathf.CeilToInt(searchRadius / cellSize);
+        List<Particle> result = new List<Particle>();
+        float radiusSquared = radius * radius;
 
-        Vector3Int cell = HashPosition(particle.position);
+        // Calculate the query range
+        Int3 minCell = GetCell(position - new Vector3(radius, radius, radius));
+        Int3 maxCell = GetCell(position + new Vector3(radius, radius, radius));
 
-        // Iterate over neighboring cells
-        for (int x = -searchRange; x <= searchRange; x++)
+        // Iterate through all possible grids
+        for (int x = minCell.x; x <= maxCell.x; x++)
         {
-            for (int y = -searchRange; y <= searchRange; y++)
+            for (int y = minCell.y; y <= maxCell.y; y++)
             {
-                for (int z = -searchRange; z <= searchRange; z++)
+                for (int z = minCell.z; z <= maxCell.z; z++)
                 {
-                    Vector3Int neighborCell = new Vector3Int(cell.x + x, cell.y + y, cell.z + z);
-                    if (cells.ContainsKey(neighborCell))
+                    Int3 cell = new Int3(x, y, z);
+                    if (grid.TryGetValue(cell, out var cellParticles))
                     {
-                        foreach (var neighborParticle in cells[neighborCell])
+                        foreach (var particle in cellParticles)
                         {
-                            if (neighborParticle != particle)
+                            float distanceSquared = (particle.position - position).sqrMagnitude;
+                            if (distanceSquared <= radiusSquared)
                             {
-                                neighbors.Add(neighborParticle);
+                                result.Add(particle);
                             }
                         }
                     }
@@ -64,12 +99,12 @@ public class SpatialHash
             }
         }
 
-        return neighbors;
+        return result;
     }
 
-    // Clear the spatial hash for the next frame
+    // Clear the grid
     public void Clear()
     {
-        cells.Clear();
+        grid.Clear();
     }
 }
