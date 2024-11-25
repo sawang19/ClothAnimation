@@ -36,17 +36,34 @@ public class ClothSimulation : MonoBehaviour
     public bool enableSelfCollision = true;
     public bool enableBendingSpring = true;
     public float foldingFactor = 1.0f;
-    private float particleRadius = 0.2f;    // Approximate radius of a particle
+    private float particleRadius = 0.05f;    // Approximate radius of a particle
     private int maxParticlesPerNode = 8;    // Max particles per octree node
     private int maxOctreeDepth = 6;         // Max depth of the octree
 
     void Start()
     {
         mesh = GetComponent<MeshFilter>().mesh;
+        MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
+        mesh = MeshRefinementUtility.SubdivideMesh(mesh, 0);
+        GetComponent<MeshFilter>().mesh = mesh;
+        if (meshRenderer != null && meshRenderer.material == null)
+        {
+            Debug.Log("No material!");
+            meshRenderer.material = new Material(Shader.Find("Standard"));
+        }
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        Debug.Log($"Vertices: {mesh.vertexCount}");
+        Debug.Log($"UVs: {mesh.uv.Length}");
+        Debug.Log($"Triangles: {mesh.triangles.Length / 3}");
+
         originalVertices = mesh.vertices;
         InitializeParticles();
         InitializeSprings();
         CalculateInitialNormal();
+
+        Debug.Log($"Springs: {springs.Count}");
 
         // Set initial wind direction
         windDirection = initialNormal;
