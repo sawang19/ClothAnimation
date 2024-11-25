@@ -22,14 +22,13 @@ public class ClothSimulation : MonoBehaviour
     public float windStrength = 10f; // Wind strength
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
-    // 调整升力和阻力系数
-    public float dragCoefficient = 0.01f; // 阻力系数
-    public float liftCoefficient = 0.2f; // 升力系数，增大以增加升力
+    public float dragCoefficient = 0.01f;
+    public float liftCoefficient = 0.2f;
 
-    public float verticalOffset = 0.3f; // 增加垂直分量
+    public float verticalOffset = 0.3f;
 
     public Toggle windToggle;
-    public Toggle xWindToggle;         // New toggle for x-axis wind
+    public Toggle xWindToggle;
     public Slider windStrengthSlider; 
 
     // Self-collision parameters
@@ -257,7 +256,7 @@ public class ClothSimulation : MonoBehaviour
         else
         {
             Debug.Log("Wind has been turned OFF.");
-            if (!xWindToggle.isOn) // 当 xWindToggle 也没开时，重置风力方向
+            if (!xWindToggle.isOn)
             {
                 windDirection = Vector3.zero;
             }
@@ -386,9 +385,8 @@ public class ClothSimulation : MonoBehaviour
 {
     foreach (var particle in particles)
     {
-        if (!particle.isPinned) // 不对固定的粒子施加风力
+        if (!particle.isPinned)
         {
-            // 基础风力，直接与风速成正比
             Vector3 baseWindForce = windDirection * windStrength;
             particle.AddForce(baseWindForce);
         }
@@ -399,30 +397,19 @@ public class ClothSimulation : MonoBehaviour
 {
     foreach (var particle in particles)
     {
-        // 计算粒子速度
         Vector3 particleVelocity = particle.GetVelocity();
-
-        // 计算相对风速
         Vector3 relativeWind = windDirection * windStrength - particleVelocity;
-
-        // 如果相对风速或法线为零向量，跳过计算
         if (relativeWind == Vector3.zero || particle.normal == Vector3.zero)
             continue;
 
-        // 归一化向量
         Vector3 relativeWindDir = relativeWind.normalized;
         Vector3 normal = particle.normal.normalized;
 
-        // 计算阻力（与相对风速方向相反）
         Vector3 dragForce = -dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
-
-        // 计算升力（正确的方向）
         Vector3 liftForce = liftCoefficient * Vector3.Cross(relativeWindDir, normal) * relativeWind.sqrMagnitude;
 
-        // 输出力的调试信息
         Debug.Log($"Wind: {windDirection * windStrength}, Wind direction: {relativeWindDir}, Drag Force: {dragForce}, Lift Force: {liftForce}");
 
-        // 施加空气动力学力
         particle.AddForce(dragForce + liftForce);
     }
 }
@@ -432,13 +419,11 @@ public class ClothSimulation : MonoBehaviour
 
     void CalculateParticleNormals()
     {
-        // 初始化法线
         foreach (var particle in particles)
         {
             particle.normal = Vector3.zero;
         }
 
-        // 遍历三角形，累加法线
         int[] triangles = mesh.triangles;
         for (int i = 0; i < triangles.Length; i += 3)
         {
@@ -457,7 +442,6 @@ public class ClothSimulation : MonoBehaviour
             particles[indexC].normal += normal;
         }
 
-        // 归一化法线
         foreach (var particle in particles)
         {
             particle.normal.Normalize();
