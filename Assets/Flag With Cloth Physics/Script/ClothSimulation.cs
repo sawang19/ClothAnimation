@@ -22,7 +22,6 @@ public class ClothSimulation : MonoBehaviour
     public float windStrength = 10f; // Wind strength
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
-    // 调整升力和阻力系数
     public float dragCoefficient = 0.01f; 
     public float liftCoefficient = 0.2f; 
 
