@@ -1,4 +1,4 @@
-using UnityEngine;
+=using UnityEngine;
 using System.Collections.Generic;
 
 public static class MeshRefinementUtility
@@ -16,7 +16,7 @@ public static class MeshRefinementUtility
     {
         Vector3[] vertices = originalMesh.vertices;
         int[] triangles = originalMesh.triangles;
-        Vector2[] uvs = originalMesh.uv; // 获取原始 UV 数据
+        Vector2[] uvs = originalMesh.uv; // Get original UV data
 
         List<Vector3> newVertices = new List<Vector3>(vertices);
         List<Vector2> newUVs = new List<Vector2>(uvs);
@@ -28,22 +28,22 @@ public static class MeshRefinementUtility
             int v1 = triangles[i + 1];
             int v2 = triangles[i + 2];
 
-            // 计算三条边的中点
+            // Calculate the midpoints of the three edges
             Vector3 mid01 = (vertices[v0] + vertices[v1]) / 2f;
             Vector3 mid12 = (vertices[v1] + vertices[v2]) / 2f;
             Vector3 mid20 = (vertices[v2] + vertices[v0]) / 2f;
 
-            // 插值 UV 数据
+            // Interpolate UV data
             Vector2 uvMid01 = (uvs[v0] + uvs[v1]) / 2f;
             Vector2 uvMid12 = (uvs[v1] + uvs[v2]) / 2f;
             Vector2 uvMid20 = (uvs[v2] + uvs[v0]) / 2f;
 
-            // 添加新顶点和 UV 数据
+            // Add new vertices and UV data
             int mid01Index = AddVertex(mid01, newVertices, uvMid01, newUVs);
             int mid12Index = AddVertex(mid12, newVertices, uvMid12, newUVs);
             int mid20Index = AddVertex(mid20, newVertices, uvMid20, newUVs);
 
-            // 创建新的三角形
+            // Create new triangles
             newTriangles.Add(v0);
             newTriangles.Add(mid01Index);
             newTriangles.Add(mid20Index);
@@ -61,11 +61,11 @@ public static class MeshRefinementUtility
             newTriangles.Add(mid20Index);
         }
 
-        // 创建新 Mesh
+        // Create new Mesh
         Mesh newMesh = new Mesh();
         newMesh.vertices = newVertices.ToArray();
         newMesh.triangles = newTriangles.ToArray();
-        newMesh.uv = newUVs.ToArray(); // 更新 UV 数据
+        newMesh.uv = newUVs.ToArray(); // Update UV data
         newMesh.RecalculateNormals();
 
         return newMesh;
@@ -73,7 +73,7 @@ public static class MeshRefinementUtility
 
     private static int AddVertex(Vector3 vertex, List<Vector3> vertices, Vector2 uv, List<Vector2> uvs)
     {
-        // 添加新顶点和对应的 UV
+        // Add new vertex and corresponding UV
         for (int i = 0; i < vertices.Count; i++)
         {
             if (Vector3.Distance(vertices[i], vertex) < 0.001f)
@@ -81,7 +81,7 @@ public static class MeshRefinementUtility
         }
 
         vertices.Add(vertex);
-        uvs.Add(uv); // 同步添加 UV 数据
+        uvs.Add(uv); // Add UV data simultaneously
         return vertices.Count - 1;
     }
 

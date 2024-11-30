@@ -6,40 +6,83 @@ using System.Collections;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ClothSimulation : MonoBehaviour
 {
-    // Arrays to hold multiple sphere and capsule colliders
+    // === Public Fields ===
+
+    // Collision Colliders
     public SphereCollider[] sphereColliders;
     public CapsuleCollider[] capsuleColliders;
 
+    // Physics Parameters
     public float gravityStrength = 9.81f;
     public float stiffness = 0.5f;
+
+    // Wind Parameters
+    public float windStrength = 10f; // Wind strength
+    public float dragCoefficient = 0.01f; 
+    public float liftCoefficient = 0.2f; 
+    public float verticalOffset = 0.3f; 
+
+    // UI Elements
+    public Toggle windToggle;
+    public Toggle xWindToggle;        
+    public Slider windStrengthSlider; 
+
+    // Self-Collision Parameters
+    public bool enableSelfCollision = true;
+    public bool enableBendingSpring = true;
+    public float foldingFactor = 1.0f;
+
+    // === Private Fields ===
 
     private Mesh mesh;
     private Vector3[] originalVertices;
     private Particle[] particles;
     private List<Spring> springs = new List<Spring>();
 
-    // Wind parameters
-    public float windStrength = 10f; // Wind strength
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
-    public float dragCoefficient = 0.01f; 
-    public float liftCoefficient = 0.2f; 
 
-    public float verticalOffset = 0.3f; 
-
-    public Toggle windToggle;
-    public Toggle xWindToggle;        
-    public Slider windStrengthSlider; 
-
-    // Self-collision parameters
-    public bool enableSelfCollision = true;
-    public bool enableBendingSpring = true;
-    public float foldingFactor = 1.0f;
     private float particleRadius = 0.05f;    // Approximate radius of a particle
-    private int maxParticlesPerNode = 8;    // Max particles per octree node
-    private int maxOctreeDepth = 6;         // Max depth of the octree
+    private int maxParticlesPerNode = 8;      // Max particles per octree node
+    private int maxOctreeDepth = 6;           // Max depth of the octree
+
+    // === Unity Lifecycle Methods ===
 
     void Start()
+    {
+        InitializeMesh();
+        InitializeParticles();
+        InitializeSprings();
+        CalculateInitialNormal();
+        Debug.Log($"Springs: {springs.Count}");
+        
+        // Set initial wind direction
+        windDirection = initialNormal;
+
+        // Setup UI Listeners
+        SetupUIListeners();
+    }
+
+    void Update()
+    {
+        float deltaTime = Time.deltaTime;
+
+        // Apply Forces
+        ApplyForces(deltaTime);
+
+        // Update Particle Positions
+        UpdateParticlePositions(deltaTime);
+
+        // Apply Constraints
+        ApplyConstraints();
+
+        // Update Mesh
+        UpdateMesh();
+    }
+
+    // === Initialization Methods ===
+
+    void InitializeMesh()
     {
         mesh = GetComponent<MeshFilter>().mesh;
         MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
@@ -57,28 +100,6 @@ public class ClothSimulation : MonoBehaviour
         Debug.Log($"UVs: {mesh.uv.Length}");
         Debug.Log($"Triangles: {mesh.triangles.Length / 3}");
         originalVertices = mesh.vertices;
-        InitializeParticles();
-        InitializeSprings();
-        CalculateInitialNormal();
-        Debug.Log($"Springs: {springs.Count}");
-        // Set initial wind direction
-        windDirection = initialNormal;
-
-        if (windToggle != null)
-        {
-            windToggle.onValueChanged.AddListener(OnWindToggleChanged);
-        }
-
-        if (xWindToggle != null)
-        {
-            xWindToggle.onValueChanged.AddListener(OnXWindToggleChanged);
-        }
-
-        if (windStrengthSlider != null)
-        {
-            windStrengthSlider.onValueChanged.AddListener(UpdateWindStrength);
-            UpdateWindStrength(windStrengthSlider.value);
-        }
     }
 
     void InitializeParticles()
@@ -140,7 +161,151 @@ public class ClothSimulation : MonoBehaviour
         {
             AddBendingSprings();
         }
+    }
 
+    void SetupUIListeners()
+    {
+        if (windToggle != null)
+        {
+            windToggle.onValueChanged.AddListener(OnWindToggleChanged);
+        }
+
+        if (xWindToggle != null)
+        {
+            xWindToggle.onValueChanged.AddListener(OnXWindToggleChanged);
+        }
+
+        if (windStrengthSlider != null)
+        {
+            windStrengthSlider.onValueChanged.AddListener(UpdateWindStrength);
+            UpdateWindStrength(windStrengthSlider.value);
+        }
+    }
+
+    // === Wind-Related Methods ===
+
+    void OnWindToggleChanged(bool isOn)
+    {
+        if (isOn)
+        {
+            Debug.Log("Wind has been turned ON.");
+            windDirection = initialNormal;
+            if (xWindToggle != null && xWindToggle.isOn)
+            {
+                xWindToggle.isOn = false;
+            }
+        }
+        else
+        {
+            Debug.Log("Wind has been turned OFF.");
+            if (!xWindToggle.isOn) 
+            {
+                windDirection = Vector3.zero;
+            }
+        }
+    }
+
+    void OnXWindToggleChanged(bool isOn)
+    {
+        if (isOn)
+        {
+            Debug.Log("X-axis wind turned ON.");
+            windDirection = new Vector3(1, 0, 0.5f).normalized;
+            if (windToggle != null && windToggle.isOn)
+            {
+                windToggle.isOn = false;
+            }
+        }
+        else
+        {
+            Debug.Log("X-axis wind turned OFF.");
+            if (!windToggle.isOn)
+            {
+                windDirection = Vector3.zero;
+            }
+        }
+    }
+
+    void UpdateWindStrength(float value)
+    {
+        float minWindStrength = 0f;
+        float maxWindStrength = 20f;
+
+        windStrength = Mathf.Lerp(minWindStrength, maxWindStrength, value);
+    }
+
+    void ApplyForces(float deltaTime)
+    {
+        CalculateParticleNormals();
+
+        // Apply gravity
+        Vector3 gravity = new Vector3(0, -gravityStrength, 0);
+        foreach (var particle in particles)
+        {
+            particle.AddForce(gravity);
+        }
+
+        // Apply wind forces
+        if (windDirection != Vector3.zero && windStrength > 0f)
+        {
+            ApplyAerodynamicForces();
+            ApplyBaseWindForce();
+        }
+    }
+
+    void ApplyBaseWindForce()
+    {
+        foreach (var particle in particles)
+        {
+            if (!particle.isPinned) 
+            {
+                Vector3 baseWindForce = windDirection * windStrength;
+                particle.AddForce(baseWindForce);
+            }
+        }
+    }
+
+    void ApplyAerodynamicForces()
+    {
+        foreach (var particle in particles)
+        {
+            Vector3 particleVelocity = particle.GetVelocity();
+
+            Vector3 relativeWind = windDirection * windStrength - particleVelocity;
+
+            if (relativeWind == Vector3.zero || particle.normal == Vector3.zero)
+                continue;
+
+            Vector3 relativeWindDir = relativeWind.normalized;
+            Vector3 normal = particle.normal.normalized;
+
+            Vector3 dragForce = -dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
+            Vector3 liftForce = liftCoefficient * Vector3.Cross(relativeWindDir, normal) * relativeWind.sqrMagnitude;
+
+            Debug.Log($"Wind: {windDirection * windStrength}, Wind direction: {relativeWindDir}, Drag Force: {dragForce}, Lift Force: {liftForce}");
+
+            particle.AddForce(dragForce + liftForce);
+        }
+    }
+
+    // === Spring-Related Methods ===
+
+    void AddSpring(int indexA, int indexB, float springStiffness = -1)
+    {
+        // Use default stiffness if not specified
+        if (springStiffness < 0)
+            springStiffness = stiffness;
+
+        // Ensure springs are not added twice
+        foreach (var spring in springs)
+        {
+            if ((spring.particleA == particles[indexA] && spring.particleB == particles[indexB]) ||
+                (spring.particleA == particles[indexB] && spring.particleB == particles[indexA]))
+            {
+                return;
+            }
+        }
+        springs.Add(new Spring(particles[indexA], particles[indexB], springStiffness));
     }
 
     void AddBendingSprings()
@@ -213,125 +378,10 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-    void CalculateInitialNormal()
+    // === Collision-Related Methods ===
+
+    void ApplyConstraints()
     {
-        // Get mesh data
-        int[] triangles = mesh.triangles;
-        Vector3[] vertices = mesh.vertices;
-
-        if (triangles.Length >= 3)
-        {
-            // Get the first triangle's vertices and convert to world coordinates
-            Vector3 p0 = transform.TransformPoint(vertices[triangles[0]]);
-            Vector3 p1 = transform.TransformPoint(vertices[triangles[1]]);
-            Vector3 p2 = transform.TransformPoint(vertices[triangles[2]]);
-
-            // Calculate the normal vector
-            Vector3 normal = Vector3.Cross(p1 - p0, p2 - p0).normalized;
-
-            // Save the initial normal direction
-            initialNormal = normal;
-        }
-        else
-        {
-            // If mesh data is insufficient, use the object's up direction by default
-            initialNormal = transform.up;
-        }
-    }
-
-    void OnWindToggleChanged(bool isOn)
-    {
-        if (isOn)
-        {
-            Debug.Log("Wind has been turned ON.");
-            windDirection = initialNormal;
-            if (xWindToggle != null && xWindToggle.isOn)
-            {
-                xWindToggle.isOn = false;
-            }
-        }
-        else
-        {
-            Debug.Log("Wind has been turned OFF.");
-            if (!xWindToggle.isOn) 
-            {
-                windDirection = Vector3.zero;
-            }
-        }
-    }
-
-    void OnXWindToggleChanged(bool isOn)
-    {
-        if (isOn)
-        {
-            Debug.Log("X-axis wind turned ON.");
-            windDirection = new Vector3(1, 0, 0.5f).normalized;
-            if (windToggle != null && windToggle.isOn)
-            {
-                windToggle.isOn = false;
-            }
-        }
-        else
-        {
-            Debug.Log("X-axis wind turned OFF.");
-            if (!windToggle.isOn)
-            {
-                windDirection = Vector3.zero;
-            }
-        }
-    }
-
-    void UpdateWindStrength(float value)
-    {
-        float minWindStrength = 0f;
-        float maxWindStrength = 20f;
-
-        windStrength = Mathf.Lerp(minWindStrength, maxWindStrength, value);
-    }
-
-    void AddSpring(int indexA, int indexB, float springStiffness = -1)
-    {
-        // Use default stiffness if not specified
-        if (springStiffness < 0)
-            springStiffness = stiffness;
-
-        // Ensure springs are not added twice
-        foreach (var spring in springs)
-        {
-            if ((spring.particleA == particles[indexA] && spring.particleB == particles[indexB]) ||
-                (spring.particleA == particles[indexB] && spring.particleB == particles[indexA]))
-            {
-                return;
-            }
-        }
-        springs.Add(new Spring(particles[indexA], particles[indexB], springStiffness));
-    }
-
-    void Update()
-    {
-        float deltaTime = Time.deltaTime;
-
-        CalculateParticleNormals();
-        // Apply gravity
-        Vector3 gravity = new Vector3(0, -gravityStrength, 0);
-        foreach (var particle in particles)
-        {
-            particle.AddForce(gravity);
-        }
-
-        if (windDirection != Vector3.zero && windStrength > 0f)
-        {
-            ApplyAerodynamicForces();
-            ApplyBaseWindForce();
-        }
-
-        // Update particle positions
-        foreach (var particle in particles)
-        {
-            // Reduce damping to allow particles to move more freely
-            particle.UpdatePosition(deltaTime, damping: 0.99f);
-        }
-
         // Apply constraints multiple times for better stability
         int constraintIterations = 5;
         for (int iteration = 0; iteration < constraintIterations; iteration++)
@@ -371,95 +421,8 @@ public class ClothSimulation : MonoBehaviour
             {
                 HandleSelfCollision();
             }
-
-        }
-
-        // Update mesh vertices
-        UpdateMesh();
-    }
-
-    void ApplyBaseWindForce()
-{
-    foreach (var particle in particles)
-    {
-        if (!particle.isPinned) 
-        {
-            
-            Vector3 baseWindForce = windDirection * windStrength;
-            particle.AddForce(baseWindForce);
         }
     }
-}
-
-    void ApplyAerodynamicForces()
-{
-    foreach (var particle in particles)
-    {
-        
-        Vector3 particleVelocity = particle.GetVelocity();
-
-        
-        Vector3 relativeWind = windDirection * windStrength - particleVelocity;
-
-        
-        if (relativeWind == Vector3.zero || particle.normal == Vector3.zero)
-            continue;
-
-       
-        Vector3 relativeWindDir = relativeWind.normalized;
-        Vector3 normal = particle.normal.normalized;
-
-        
-        Vector3 dragForce = -dragCoefficient * relativeWindDir * relativeWind.sqrMagnitude;
-
-      
-        Vector3 liftForce = liftCoefficient * Vector3.Cross(relativeWindDir, normal) * relativeWind.sqrMagnitude;
-
-        
-        Debug.Log($"Wind: {windDirection * windStrength}, Wind direction: {relativeWindDir}, Drag Force: {dragForce}, Lift Force: {liftForce}");
-
-       
-        particle.AddForce(dragForce + liftForce);
-    }
-}
-
-
-
-
-    void CalculateParticleNormals()
-    {
-        // 初始化法线
-        foreach (var particle in particles)
-        {
-            particle.normal = Vector3.zero;
-        }
-
-        
-        int[] triangles = mesh.triangles;
-        for (int i = 0; i < triangles.Length; i += 3)
-        {
-            int indexA = triangles[i];
-            int indexB = triangles[i + 1];
-            int indexC = triangles[i + 2];
-
-            Vector3 pA = particles[indexA].position;
-            Vector3 pB = particles[indexB].position;
-            Vector3 pC = particles[indexC].position;
-
-            Vector3 normal = Vector3.Cross(pB - pA, pC - pA).normalized;
-
-            particles[indexA].normal += normal;
-            particles[indexB].normal += normal;
-            particles[indexC].normal += normal;
-        }
-
-       
-        foreach (var particle in particles)
-        {
-            particle.normal.Normalize();
-        }
-    }
-
 
     void HandleSphereCollision(SphereCollider sphereCollider, float elasticity = 0.05f, float friction = 0.2f)
     {
@@ -529,8 +492,8 @@ public class ClothSimulation : MonoBehaviour
         else if (directionAxis == 2) offsetVector = new Vector3(0, 0, offset); // Z-axis
 
         // Calculate the centers of the two hemispherical ends (local coordinates)
-        Vector3 pointA = center + offsetVector; // Top hemisphere center
-        Vector3 pointB = center - offsetVector; // Bottom hemisphere center
+        Vector3 pointA = center + offsetVector;
+        Vector3 pointB = center - offsetVector;
 
         // Convert to world coordinates
         pointA = objTransform.TransformPoint(pointA);
@@ -574,14 +537,12 @@ public class ClothSimulation : MonoBehaviour
         // Calculate the bounds of all particles
         Bounds octreeBounds = CalculateBounds();
 
-        // Create the octree
-        // Octree octree = new Octree(octreeBounds, maxParticlesPerNode, maxOctreeDepth);
+        // Create the spatial hash
         SpatialHash spatialHash = new SpatialHash(particleRadius * 2.5f);
 
-        // Insert particles into the octree
+        // Insert particles into the spatial hash
         foreach (var particle in particles)
         {
-            // octree.Insert(particle);
             spatialHash.Insert(particle);
         }
 
@@ -592,9 +553,7 @@ public class ClothSimulation : MonoBehaviour
             float searchRadius = particleRadius * 2f;
 
             // Get neighboring particles
-            // List<Particle> neighbors = octree.Query(particle.position, searchRadius);
             List<Particle> neighbors = spatialHash.Query(particle.position, searchRadius);
-
 
             foreach (var neighbor in neighbors)
             {
@@ -640,6 +599,19 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
+    // === Update Particle Positions ===
+
+    void UpdateParticlePositions(float deltaTime)
+    {
+        // Update particle positions with damping
+        foreach (var particle in particles)
+        {
+            particle.UpdatePosition(deltaTime, damping: 0.99f);
+        }
+    }
+
+    // === Helper Methods ===
+
     bool AreParticlesConnected(Particle a, Particle b)
     {
         // Check if particles are connected by a spring
@@ -671,6 +643,69 @@ public class ClothSimulation : MonoBehaviour
         return bounds;
     }
 
+    // === Normal Calculation ===
+
+    void CalculateInitialNormal()
+    {
+        // Get mesh data
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
+
+        if (triangles.Length >= 3)
+        {
+            // Get the first triangle's vertices and convert to world coordinates
+            Vector3 p0 = transform.TransformPoint(vertices[triangles[0]]);
+            Vector3 p1 = transform.TransformPoint(vertices[triangles[1]]);
+            Vector3 p2 = transform.TransformPoint(vertices[triangles[2]]);
+
+            // Calculate the normal vector
+            Vector3 normal = Vector3.Cross(p1 - p0, p2 - p0).normalized;
+
+            // Save the initial normal direction
+            initialNormal = normal;
+        }
+        else
+        {
+            // If mesh data is insufficient, use the object's up direction by default
+            initialNormal = transform.up;
+        }
+    }
+
+    void CalculateParticleNormals()
+    {
+        // Initialize normals
+        foreach (var particle in particles)
+        {
+            particle.normal = Vector3.zero;
+        }
+
+        int[] triangles = mesh.triangles;
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            int indexA = triangles[i];
+            int indexB = triangles[i + 1];
+            int indexC = triangles[i + 2];
+
+            Vector3 pA = particles[indexA].position;
+            Vector3 pB = particles[indexB].position;
+            Vector3 pC = particles[indexC].position;
+
+            Vector3 normal = Vector3.Cross(pB - pA, pC - pA).normalized;
+
+            particles[indexA].normal += normal;
+            particles[indexB].normal += normal;
+            particles[indexC].normal += normal;
+        }
+
+        // Normalize all normals
+        foreach (var particle in particles)
+        {
+            particle.normal.Normalize();
+        }
+    }
+
+    // === Mesh Update Methods ===
+
     void UpdateMesh()
     {
         Vector3[] vertices = new Vector3[particles.Length];
@@ -681,6 +716,8 @@ public class ClothSimulation : MonoBehaviour
         mesh.vertices = vertices;
         mesh.RecalculateNormals();
     }
+
+    // === Gizmos Methods ===
 
     void OnDrawGizmos()
     {
@@ -773,4 +810,3 @@ public class ClothSimulation : MonoBehaviour
         Gizmos.DrawWireSphere(pointB, capsuleRadius);
     }
 }
-

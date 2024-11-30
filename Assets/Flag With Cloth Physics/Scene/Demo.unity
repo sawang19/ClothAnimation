@@ -368,7 +368,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: fdb0b6e007fc94b7097828f39c4bfc61, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: fdb0b6e007fc94b7097828f39c4bfc61, type: 3}
       propertyPath: m_LocalRotation.w
@@ -2074,8 +2074,8 @@ MonoBehaviour:
   windToggle: {fileID: 630405946}
   xWindToggle: {fileID: 465992589}
   windStrengthSlider: {fileID: 678001942}
-  enableSelfCollision: 1
-  enableBendingSpring: 1
+  enableSelfCollision: 0
+  enableBendingSpring: 0
   foldingFactor: 0.01
 --- !u!1 &2051087758
 GameObject:
