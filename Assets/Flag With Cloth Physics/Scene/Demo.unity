@@ -2074,8 +2074,8 @@ MonoBehaviour:
   windToggle: {fileID: 630405946}
   xWindToggle: {fileID: 465992589}
   windStrengthSlider: {fileID: 678001942}
-  enableSelfCollision: 0
-  enableBendingSpring: 0
+  enableSelfCollision: 1
+  enableBendingSpring: 1
   foldingFactor: 0.01
 --- !u!1 &2051087758
 GameObject:
