@@ -42,7 +42,7 @@ public class ClothSimulation : MonoBehaviour
     private Vector3 windDirection;    // Wind direction
     private Vector3 initialNormal;
 
-    private float particleRadius = 0.05f;    // Approximate radius of a particle
+    private float particleRadius = 0.10f;    // Approximate radius of a particle
     private int maxParticlesPerNode = 8;      // Max particles per octree node
     private int maxOctreeDepth = 6;           // Max depth of the octree
 
@@ -455,18 +455,18 @@ public class ClothSimulation : MonoBehaviour
                 // Calculate collision force
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
-            }
 
-            // Calculate friction force
-            Vector3 normal = direction.normalized;
-            Vector3 velocity = particle.position - particle.previousPosition;
-            Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
-            Vector3 frictionForce = -tangentialVelocity * friction;
-            particle.AddForce(frictionForce);
+                // Calculate friction force
+                Vector3 normal = direction.normalized;
+                Vector3 velocity = particle.position - particle.previousPosition;
+                Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
+                Vector3 frictionForce = -tangentialVelocity * friction;
+                particle.AddForce(frictionForce);
+            }
         }
     }
 
-    void HandleCapsuleCollision(CapsuleCollider capsuleCollider, float elasticity = 0.05f)
+    void HandleCapsuleCollision(CapsuleCollider capsuleCollider, float elasticity = 0.05f, float friction = 0.2f)
     {
         // Get Transform
         Transform objTransform = capsuleCollider.transform;
@@ -500,7 +500,7 @@ public class ClothSimulation : MonoBehaviour
         pointB = objTransform.TransformPoint(pointB);
 
         float deltaR = 0.02f * capsuleRadius;
-        float collisionRadius = capsuleRadius + deltaR;  // Prevent clipping
+        float collisionRadius = capsuleRadius + deltaR; // Prevent clipping
 
         foreach (var particle in particles)
         {
@@ -528,9 +528,17 @@ public class ClothSimulation : MonoBehaviour
                 // Calculate and apply collision force
                 Vector3 collisionForce = direction.normalized * elasticity;
                 particle.AddForce(collisionForce);
+
+                // Calculate and apply friction force
+                Vector3 normal = direction.normalized;
+                Vector3 velocity = particle.position - particle.previousPosition;
+                Vector3 tangentialVelocity = velocity - Vector3.Dot(velocity, normal) * normal;
+                Vector3 frictionForce = -tangentialVelocity * friction;
+                particle.AddForce(frictionForce);
             }
         }
     }
+
 
     void HandleSelfCollision()
     {
@@ -606,7 +614,7 @@ public class ClothSimulation : MonoBehaviour
         // Update particle positions with damping
         foreach (var particle in particles)
         {
-            particle.UpdatePosition(deltaTime, damping: 0.99f);
+            particle.UpdatePosition(deltaTime, damping: 0.98f);
         }
     }
 

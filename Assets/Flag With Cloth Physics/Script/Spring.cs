@@ -15,7 +15,7 @@ public class Spring
         restLength = Vector3.Distance(a.position, b.position);
     }
 
-    public void ApplyConstraint(float dampingFactor = 0.02f)
+    public void ApplyConstraint(float dampingFactor = 0.01f)
     {
         Vector3 delta = particleB.position - particleA.position;
         float currentLength = delta.magnitude;
