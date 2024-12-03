@@ -4,6 +4,9 @@ This project simulates a flag with cloth physics and allows you to experiment wi
 
 ---
 
+## Code repository: 
+https://github.com/sawang19/ClothAnimation
+
 ## Requirements
 
 - **Unity Editor Version**: `2022.3.48f1`  
